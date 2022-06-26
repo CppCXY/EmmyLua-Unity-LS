@@ -6,31 +6,31 @@ public class CustomSymbolFinder
 {
     public List<INamedTypeSymbol> GetAllSymbols(Compilation compilation)
     {
-        var visitor = new FindAllSymbolsVisitor(Filter);
+        var visitor = new FindAllSymbolsVisitor();
         visitor.Visit(compilation.GlobalNamespace);
         return visitor.AllTypeSymbols;
     }
 
-    public HashSet<string> Filter { get; set; } = new HashSet<string>();
+    // public HashSet<string> Filter { get; set; } = new HashSet<string>();
 
     private class FindAllSymbolsVisitor : SymbolVisitor
     {
-        private readonly HashSet<string> _filter;
+        // private readonly HashSet<string> _filter;
 
-        public FindAllSymbolsVisitor(HashSet<string> filter)
-        {
-            _filter = filter;
-        }
+        // public FindAllSymbolsVisitor()
+        // {
+        //     // _filter = filter;
+        // }
 
         public List<INamedTypeSymbol> AllTypeSymbols { get; } = new List<INamedTypeSymbol>();
 
         public override void VisitNamespace(INamespaceSymbol symbol)
         {
             if (symbol.IsGlobalNamespace
-                || _filter.Contains(symbol.ToString()!))
+                || symbol.ToString()!.StartsWith("System"))
             {
                 // Parallel.ForEach(symbol.GetMembers(), s => s.Accept(this));
-                foreach(var member in symbol.GetMembers())
+                foreach (var member in symbol.GetMembers())
                 {
                     member.Accept(this);
                 }

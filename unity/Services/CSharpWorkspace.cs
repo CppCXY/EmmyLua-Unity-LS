@@ -3,8 +3,6 @@ using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.MSBuild;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
-using OmniSharp.Extensions.LanguageServer.Server;
-using Serilog;
 
 namespace unity.Services;
 
@@ -76,45 +74,16 @@ public class CSharpWorkspace
             return;
         }
         var finder = new CustomSymbolFinder();
-        finder.Filter = new HashSet<string>()
-        {
-            "System",
-            "unity",
-            "unity.Services"
-        };     
-        
+
         var symbols = finder.GetAllSymbols(_compilation);
+
+        var generateDocument = new GenerateDocument(@"C:\Users\zc\Desktop\learn\unity");
         
         foreach (var symbol in symbols)
         {
-            Console.WriteLine(symbol);
-        
-            foreach (var member in symbol.GetMembers())
+            if (symbol.DeclaredAccessibility == Accessibility.Public)
             {
-                if (member.DeclaredAccessibility == Accessibility.Public)
-                {
-                    var doc = symbol.GetDocumentationCommentXml();
-                    if (!string.IsNullOrEmpty(doc))
-                    {
-                        Log.Logger.Debug($"    Comment:\n{doc}");
-                    }
-                    if (member.Kind == SymbolKind.Field)
-                    {
-                        Log.Logger.Debug($"    Field:{member.Name}");
-                    }
-                    else if (member.Kind == SymbolKind.Property)
-                    {
-                        Log.Logger.Debug($"    property:{member.Name}");
-                    }
-                    else if (member.Kind == SymbolKind.Method)
-                    {
-                        Log.Logger.Debug($"    Method:{member.Name}");
-                    }
-                    else
-                    {
-                        Log.Logger.Debug($"    unknown#{member.Kind}:{member.Name}");
-                    }
-                }
+                generateDocument.WriteClass(symbol);
             }
         }
     }
