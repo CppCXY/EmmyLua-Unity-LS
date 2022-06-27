@@ -108,6 +108,7 @@ public class GenerateDocument
         var className = classSymbol.Name;
         var doc = methodSymbol.GetDocumentationCommentXml();
         WriteComment(doc);
+        WriteLocation(methodSymbol);
         if (methodSymbol.IsStatic)
         {
             _currentFileStream?.WriteLine(
@@ -115,7 +116,7 @@ public class GenerateDocument
         }
         else if (methodSymbol.Name == ".ctor")
         {
-            _currentFileStream?.WriteLine($"function {className}:__call() end\n");
+            _currentFileStream?.WriteLine($"function {className}:__call({MakeMethodArgList(methodSymbol)}) end\n");
         }
         else
         {
@@ -124,9 +125,27 @@ public class GenerateDocument
         }
     }
 
+    private void WriteLocation(ISymbol symbol)
+    {
+        if (!symbol.Locations.IsEmpty)
+        {
+            var location = symbol.Locations.First();
+            if (location.IsInMetadata)
+            {
+                _currentFileStream?.WriteLine($"---@reference {location.MetadataModule}");
+            }
+            else if (location.IsInSource)
+            {
+                var lineSpan = location.SourceTree.GetLineSpan(location.SourceSpan);
+                
+                _currentFileStream?.WriteLine($"---@reference {new Uri(location.SourceTree.FilePath)}#{lineSpan.Span.Start.Line + 1}#{lineSpan.Span.Start.Character}");
+            }
+        }
+    }
+
     private string MakeMethodArgList(IMethodSymbol methodSymbol)
     {
-        return string.Join(", ", methodSymbol.TypeArguments.ToList().Select(it => it.Name));
+        return string.Join(", ", methodSymbol.Parameters.ToList().Select(it => it.Name));
     }
 
     private void SetFileStream(ISymbol symbol)

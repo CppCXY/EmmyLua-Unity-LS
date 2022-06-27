@@ -75,7 +75,13 @@ public class CSharpWorkspace
         }
         var finder = new CustomSymbolFinder();
 
-        var symbols = finder.GetAllSymbols(_compilation);
+        var symbols = finder.GetAllSymbols(_compilation, new List<string>()
+        {
+            // "System",
+            "Unity",
+            "UnityEngine",
+            "unity"
+        });
 
         var generateDocument = new GenerateDocument(@"C:\Users\zc\Desktop\learn\unity");
         
