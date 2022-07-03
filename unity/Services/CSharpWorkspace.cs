@@ -3,6 +3,7 @@ using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.MSBuild;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
+using unity.Util;
 
 namespace unity.Services;
 
@@ -12,7 +13,6 @@ public class CSharpWorkspace
     private Compilation? _compilation;
     private Dictionary<string, SyntaxTree> _treeMap;
 
-    
     public CSharpWorkspace()
     {
         MSBuildLocator.RegisterDefaults();
@@ -21,7 +21,7 @@ public class CSharpWorkspace
     }
 
     public ILanguageServer? Server { get; set; }
-    
+
     public async Task<bool> OpenSolution(string path)
     {
         var solution = await _workspace.OpenSolutionAsync(path);
@@ -73,6 +73,7 @@ public class CSharpWorkspace
         {
             return;
         }
+
         var finder = new CustomSymbolFinder();
 
         var symbols = finder.GetAllSymbols(_compilation, new List<string>()
@@ -83,13 +84,21 @@ public class CSharpWorkspace
             "unity"
         });
 
-        var generateDocument = new GenerateDocument(@"C:\Users\zc\Desktop\learn\unity");
-        
+        // var generateDocument = new GenerateDocument(@"C:\Users\zc\Desktop\learn\unity");
+        //
+        // foreach (var symbol in symbols)
+        // {
+        //     if (symbol.DeclaredAccessibility == Accessibility.Public)
+        //     {
+        //         generateDocument.WriteClass(symbol);
+        //     }
+        // }
+        var generate = new GenerateJsonApi(Server!);
         foreach (var symbol in symbols)
         {
             if (symbol.DeclaredAccessibility == Accessibility.Public)
             {
-                generateDocument.WriteClass(symbol);
+                generate.SendClass(symbol);
             }
         }
     }

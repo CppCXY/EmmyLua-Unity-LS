@@ -1,7 +1,7 @@
 ﻿using System.Net;
 using Microsoft.CodeAnalysis;
 
-namespace unity.Services;
+namespace unity.Util;
 
 public class GenerateDocument
 {

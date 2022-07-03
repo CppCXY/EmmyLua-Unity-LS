@@ -17,7 +17,4 @@
     <PackageReference Include="Serilog" Version="2.11.1-dev-01397" />
     <PackageReference Include="Serilog.Sinks.Console" Version="4.0.2-dev-00890" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Util" />
-  </ItemGroup>
 </Project>
