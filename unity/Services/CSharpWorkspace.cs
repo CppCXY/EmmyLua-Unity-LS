@@ -3,6 +3,7 @@ using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.MSBuild;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
+using Serilog;
 using unity.Util;
 
 namespace unity.Services;
@@ -25,8 +26,8 @@ public class CSharpWorkspace
     public async Task<bool> OpenSolution(string path)
     {
         var solution = await _workspace.OpenSolutionAsync(path);
-        // _project = _solution?.Projects.FirstOrDefault(it => it?.Name == "Assembly-CSharp", null);
-        var project = solution.Projects.FirstOrDefault(it => it?.Name == "unity", null);
+        var project = solution?.Projects.FirstOrDefault(it => it?.Name == "Assembly-CSharp", null);
+        // var project = solution.Projects.FirstOrDefault(it => it?.Name == "unity", null);
         if (project != null)
         {
             _compilation = await project.GetCompilationAsync(CancellationToken.None);
@@ -94,12 +95,21 @@ public class CSharpWorkspace
         //     }
         // }
         var generate = new GenerateJsonApi(Server!);
-        foreach (var symbol in symbols)
+        try
         {
-            if (symbol.DeclaredAccessibility == Accessibility.Public)
+            generate.Begin();
+            foreach (var symbol in symbols)
             {
-                generate.SendClass(symbol);
+                if (symbol.DeclaredAccessibility == Accessibility.Public)
+                {
+                    generate.SendClass(symbol);
+                }
             }
+        }
+        catch (Exception e)
+        {
+            Log.Logger.Error(e.Message);
+            generate.Finish();
         }
     }
 }

@@ -1,34 +1,35 @@
 ﻿using MediatR;
 using Microsoft.CodeAnalysis;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
+using Serilog;
 
 namespace unity.Util;
 
 class LuaApiBase
 {
-    public string Name { get; set; }
-    public string Comment { get; set; }
-    public string Location { get; set; }
+    public string Name { get; set; } = String.Empty;
+    public string Comment { get; set; } = String.Empty;
+    public string Location { get; set; } = String.Empty;
 }
 
 class LuaApiField : LuaApiBase
 {
-    public string TypeName;
+    public string TypeName = String.Empty;
 }
 
 class LuaApiMethod : LuaApiBase
 {
-    public string ReturnTypeName;
-    public List<string> Params;
+    public string ReturnTypeName = String.Empty;
+    public List<string> Params = new List<string>();
     public bool IsStatic;
 }
 
 class LuaClassRequest : LuaApiBase, IRequest
 {
-    public string Namespace;
-    public string BaseClass;
-    public List<LuaApiField> Fields;
-    public List<LuaApiMethod> Methods;
+    public string Namespace = String.Empty;
+    public string BaseClass = String.Empty;
+    public List<LuaApiField> Fields = new List<LuaApiField>();
+    public List<LuaApiMethod> Methods = new List<LuaApiMethod>();
 }
 
 public class GenerateJsonApi
@@ -42,36 +43,52 @@ public class GenerateJsonApi
         _server = server;
     }
 
+    public void Begin()
+    {
+        _server.SendNotification("api/begin");
+    }
+
+    public void Finish()
+    {
+        _server.SendNotification("api/finish");
+    }
+    
     public void SendClass(ISymbol symbol)
     {
         if (symbol.Kind == SymbolKind.NamedType)
         {
             var classSymbol = (symbol as INamedTypeSymbol)!;
             SetClass(classSymbol);
-
-            foreach (var field in classSymbol.GetMembers())
+            try
             {
-                if (field.DeclaredAccessibility == Accessibility.Public)
+                foreach (var field in classSymbol.GetMembers())
                 {
-                    switch (field.Kind)
+                    if (field.DeclaredAccessibility == Accessibility.Public)
                     {
-                        case SymbolKind.Property:
-                        case SymbolKind.Field:
+                        switch (field.Kind)
                         {
-                            WriteClassField(field);
-                            break;
+                            case SymbolKind.Property:
+                            case SymbolKind.Field:
+                            {
+                                WriteClassField(field);
+                                break;
+                            }
+                            case SymbolKind.Method:
+                            {
+                                WriteClassFunction((field as IMethodSymbol)!);
+                                break;
+                            }
+                            default: break;
                         }
-                        case SymbolKind.Method:
-                        {
-                            WriteClassFunction((field as IMethodSymbol)!);
-                            break;
-                        }
-                        default: break;
                     }
                 }
             }
+            catch (Exception e)
+            {
+                Log.Logger.Error(e.Message);
+            }
 
-            _server.SendNotification("reportAPI", _currentClass!);
+            _server.SendNotification("api/add", _currentClass!);
         }
     }
 
