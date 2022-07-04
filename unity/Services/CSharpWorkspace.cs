@@ -109,6 +109,9 @@ public class CSharpWorkspace
         catch (Exception e)
         {
             Log.Logger.Error(e.Message);
+        }
+        finally
+        {
             generate.Finish();
         }
     }

@@ -112,6 +112,7 @@ public class GenerateJsonApi
         method.IsStatic = methodSymbol.IsStatic;
         method.ReturnTypeName = methodSymbol.ReturnType.Name;
         method.Params = methodSymbol.Parameters.Select(it => it.Name).ToList();
+        _currentClass?.Methods.Add(method);
     }
 
     private void SetClass(INamedTypeSymbol symbol)
