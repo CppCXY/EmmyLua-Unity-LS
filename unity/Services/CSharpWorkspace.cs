@@ -108,7 +108,7 @@ public class CSharpWorkspace
         }
         catch (Exception e)
         {
-            Log.Logger.Error(e.Message);
+            Log.Logger.Error($"message: {e.Message}\n stacktrace: {e.StackTrace}");
         }
         finally
         {

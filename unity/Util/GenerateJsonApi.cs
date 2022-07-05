@@ -52,15 +52,15 @@ public class GenerateJsonApi
     {
         _server.SendNotification("api/finish");
     }
-    
+
     public void SendClass(ISymbol symbol)
     {
         if (symbol.Kind == SymbolKind.NamedType)
         {
-            var classSymbol = (symbol as INamedTypeSymbol)!;
-            SetClass(classSymbol);
             try
             {
+                var classSymbol = (symbol as INamedTypeSymbol)!;
+                SetClass(classSymbol);
                 foreach (var field in classSymbol.GetMembers())
                 {
                     if (field.DeclaredAccessibility == Accessibility.Public)
@@ -100,7 +100,7 @@ public class GenerateJsonApi
         _currentClass?.Fields.Add(field);
     }
 
-    private void WriteClassFunction( IMethodSymbol methodSymbol)
+    private void WriteClassFunction(IMethodSymbol methodSymbol)
     {
         if (methodSymbol.Name.StartsWith("get_") || methodSymbol.Name.StartsWith("set_"))
         {
@@ -118,7 +118,11 @@ public class GenerateJsonApi
     private void SetClass(INamedTypeSymbol symbol)
     {
         _currentClass = new LuaClassRequest();
-        _currentClass.Namespace = symbol.ContainingNamespace.ToString() ?? "";
+        if (!symbol.ContainingNamespace.IsGlobalNamespace)
+        {
+            _currentClass.Namespace = symbol.ContainingNamespace.ToString() ?? "";
+        }
+
         _currentClass.BaseClass = symbol.BaseType?.ToString() ?? "";
         FillBaeInfo(symbol, _currentClass);
     }
@@ -140,7 +144,7 @@ public class GenerateJsonApi
                     var lineSpan = location.SourceTree.GetLineSpan(location.SourceSpan);
 
                     apiBase.Location =
-                        $"{new Uri(location.SourceTree.FilePath)}#{lineSpan.Span.Start.Line + 1}#{lineSpan.Span.Start.Character}";
+                        $"{new Uri(location.SourceTree.FilePath)}#{lineSpan.Span.Start.Line + 1}";
                 }
             }
 
