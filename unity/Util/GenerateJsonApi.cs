@@ -1,4 +1,6 @@
-﻿using MediatR;
+﻿using System.Text;
+using System.Xml;
+using MediatR;
 using Microsoft.CodeAnalysis;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using Serilog;
@@ -149,10 +151,70 @@ public class GenerateJsonApi
             }
 
             var comment = symbol.GetDocumentationCommentXml();
-            if (comment != null)
+            if (!string.IsNullOrEmpty(comment))
             {
-                apiBase.Comment = comment;
+                apiBase.Comment = HandleXmlComment(comment);
             }
         }
+    }
+
+    private string HandleXmlComment(string comment)
+    {
+        comment = comment.Replace('\r', ' ').Trim();
+        if (!comment.StartsWith("<member") && !comment.StartsWith("<summary"))
+        {
+            return "";
+        }
+        
+        var doc = new XmlDocument();
+        try
+        {
+            doc.LoadXml(comment);
+        }
+        catch (Exception e)
+        {
+            // workaround
+            comment = $"<member>{comment}</member>";
+            doc.LoadXml(comment);
+        }
+        
+        var sb = new StringBuilder();
+        var summaryDoc = doc.SelectSingleNode("member/summary");
+        if (summaryDoc != null)
+        {
+            sb.Append(HandleSummary(summaryDoc!.Value)).Append("\n\n");
+        }
+
+        var paramsDoc = doc.SelectNodes("member/param");
+        if (paramsDoc != null && paramsDoc.Count != 0)
+        {
+            var paramDescription = "Params: ";
+            var indentSize = paramDescription.Length;
+            var indent = new string(' ', indentSize);
+            sb.Append("```plaintext\n");
+            sb.Append(paramDescription);
+            foreach (XmlNode item in paramsDoc)
+            {
+                if (item != null && item.Attributes != null)
+                {
+                    sb.Append($"{item.Attributes["name"]} - {item.Value?.Trim()}\n{indent}");
+                }
+            }
+
+            sb.Append("```\n\n");
+        }
+
+        return sb.ToString().Replace('\r', ' ');
+    }
+
+    private string HandleSummary(string text)
+    {
+        text = text.Trim();
+        if (text.StartsWith("<para>"))
+        {
+            text = text.Substring(6, text.Length - 13);
+        }
+
+        return text;
     }
 }
