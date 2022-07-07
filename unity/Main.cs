@@ -42,7 +42,7 @@ var server = await LanguageServer.From(options =>
     
     options
         .WithHandler<WorkspaceHandler>()
-        // .OnJsonRequest("api/pull", CustomHandler.OnPull)
+        .WithHandler<PullHandler>()
         .ConfigureLogging(
             x => x
                 .AddLanguageProtocolLogging()
@@ -72,6 +72,10 @@ var server = await LanguageServer.From(options =>
                     {
                         var result = await workspace.OpenSolution(json.Value<string>("sln")!);
                         workspace.Server = server;
+                        if (json["export"] != null)
+                        {
+                            workspace.SetExportNamespace(json["export"].Values<string>().ToList());
+                        }
                     }
                 }
                 

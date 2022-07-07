@@ -13,12 +13,17 @@ public class CSharpWorkspace
     private readonly MSBuildWorkspace _workspace;
     private Compilation? _compilation;
     private Dictionary<string, SyntaxTree> _treeMap;
+    private List<string> _exportNamespace;
 
     public CSharpWorkspace()
     {
         MSBuildLocator.RegisterDefaults();
         _workspace = MSBuildWorkspace.Create();
         _treeMap = new Dictionary<string, SyntaxTree>();
+        _exportNamespace = new List<string>()
+        {
+            "UnityEngine"
+        };
     }
 
     public ILanguageServer? Server { get; set; }
@@ -68,6 +73,11 @@ public class CSharpWorkspace
         }
     }
 
+    public void SetExportNamespace(List<string> exportNamespace)
+    {
+        _exportNamespace = exportNamespace;
+    }
+    
     public void GenerateDoc()
     {
         if (_compilation == null)
@@ -77,11 +87,7 @@ public class CSharpWorkspace
 
         var finder = new CustomSymbolFinder();
 
-        var symbols = finder.GetAllSymbols(_compilation, new List<string>()
-        {
-            "vx",
-            "UnityEngine",
-        });
+        var symbols = finder.GetAllSymbols(_compilation, _exportNamespace);
         
         var generate = new GenerateJsonApi(Server!);
         try
