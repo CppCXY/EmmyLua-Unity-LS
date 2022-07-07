@@ -19,10 +19,16 @@ class LuaApiField : LuaApiBase
     public string TypeName = String.Empty;
 }
 
+class LuaParam
+{
+    public string Name { get; set; } = String.Empty;
+    public string TypeName { get; set; } = String.Empty;
+}
+
 class LuaApiMethod : LuaApiBase
 {
     public string ReturnTypeName = String.Empty;
-    public List<string> Params = new List<string>();
+    public List<LuaParam> Params = new List<LuaParam>();
     public bool IsStatic;
 }
 
@@ -113,7 +119,11 @@ public class GenerateJsonApi
         FillBaeInfo(methodSymbol, method);
         method.IsStatic = methodSymbol.IsStatic;
         method.ReturnTypeName = methodSymbol.ReturnType.Name;
-        method.Params = methodSymbol.Parameters.Select(it => it.Name).ToList();
+        method.Params = methodSymbol.Parameters.Select(it => new LuaParam()
+        {
+            Name = it.Name,
+            TypeName = it.Type.ToString() ?? "any"
+        }).ToList();
         _currentClass?.Methods.Add(method);
     }
 
@@ -165,56 +175,77 @@ public class GenerateJsonApi
         {
             return "";
         }
-        
-        var doc = new XmlDocument();
-        try
+
+        if (comment.StartsWith("<summary"))
         {
-            doc.LoadXml(comment);
-        }
-        catch (Exception e)
-        {
-            // workaround
-            comment = $"<member>{comment}</member>";
-            doc.LoadXml(comment);
-        }
-        
-        var sb = new StringBuilder();
-        var summaryDoc = doc.SelectSingleNode("member/summary");
-        if (summaryDoc != null)
-        {
-            sb.Append(HandleSummary(summaryDoc!.Value)).Append("\n\n");
+            comment = $"<parent>{comment}</parent>";
         }
 
-        var paramsDoc = doc.SelectNodes("member/param");
-        if (paramsDoc != null && paramsDoc.Count != 0)
+        var summaryText = string.Empty;
+        var paramInfo = new List<string>();
+        var returnInfo = string.Empty;
+        using (var xmlDoc = XmlReader.Create(new StringReader(comment)))
+        {
+            while (xmlDoc.Read())
+            {
+                if (xmlDoc.IsStartElement())
+                {
+                    if (xmlDoc.Name == "summary" || xmlDoc.Name == "para")
+                    {
+                        xmlDoc.Read();
+                        if (xmlDoc.NodeType == XmlNodeType.Text)
+                        {
+                            summaryText = xmlDoc.Value.Trim();
+                        }
+                    }
+                    else if (xmlDoc.Name == "param")
+                    {
+                        var paramName = xmlDoc.GetAttribute("name");
+                        xmlDoc.Read();
+                        if (xmlDoc.NodeType == XmlNodeType.Text)
+                        {
+                            var paramValue = xmlDoc.Value.Trim();
+                            paramInfo.Add($"{paramName} - {paramValue}");
+                        }
+                    }
+                    else if (xmlDoc.Name == "returns")
+                    {
+                        returnInfo = xmlDoc.Value;
+                    }
+                }
+            }
+        }
+
+        var sb = new StringBuilder();
+        if (summaryText.Length != 0)
+        {
+            sb.Append(summaryText).Append("\n\n");
+        }
+
+        if (paramInfo.Count != 0)
         {
             var paramDescription = "Params: ";
             var indentSize = paramDescription.Length;
             var indent = new string(' ', indentSize);
             sb.Append("```plaintext\n");
             sb.Append(paramDescription);
-            foreach (XmlNode item in paramsDoc)
+            foreach (var param in paramInfo)
             {
-                if (item != null && item.Attributes != null)
-                {
-                    sb.Append($"{item.Attributes["name"]} - {item.Value?.Trim()}\n{indent}");
-                }
+                sb.Append($"{param}\n{indent}");
             }
+            
+            sb.Append("\n```\n\n");
+        }
 
+        if (returnInfo.Length != 0)
+        {
+            var returnDescription = "Returns: ";
+            sb.Append("```plaintext\n");
+            sb.Append(returnDescription);
+            sb.Append(returnInfo);
             sb.Append("```\n\n");
         }
 
-        return sb.ToString().Replace('\r', ' ');
-    }
-
-    private string HandleSummary(string text)
-    {
-        text = text.Trim();
-        if (text.StartsWith("<para>"))
-        {
-            text = text.Substring(6, text.Length - 13);
-        }
-
-        return text;
+        return sb.ToString();
     }
 }

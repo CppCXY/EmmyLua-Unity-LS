@@ -79,21 +79,10 @@ public class CSharpWorkspace
 
         var symbols = finder.GetAllSymbols(_compilation, new List<string>()
         {
-            // "System",
-            "Unity",
+            "vx",
             "UnityEngine",
-            "unity"
         });
-
-        // var generateDocument = new GenerateDocument(@"C:\Users\zc\Desktop\learn\unity");
-        //
-        // foreach (var symbol in symbols)
-        // {
-        //     if (symbol.DeclaredAccessibility == Accessibility.Public)
-        //     {
-        //         generateDocument.WriteClass(symbol);
-        //     }
-        // }
+        
         var generate = new GenerateJsonApi(Server!);
         try
         {

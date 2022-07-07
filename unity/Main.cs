@@ -39,9 +39,10 @@ var server = await LanguageServer.From(options =>
         options.WithOutput(networkStream).WithInput(networkStream);
         Log.Logger.Debug("net stream create !");
     }
-
+    
     options
         .WithHandler<WorkspaceHandler>()
+        // .OnJsonRequest("api/pull", CustomHandler.OnPull)
         .ConfigureLogging(
             x => x
                 .AddLanguageProtocolLogging()
@@ -92,7 +93,7 @@ var server = await LanguageServer.From(options =>
                         Message = "loading unity project...",
                     }
                 );
-                
+
                 var workspace = server.Services.GetService<CSharpWorkspace>();
                 if (workspace != null)
                 {
