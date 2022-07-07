@@ -39,7 +39,7 @@ var server = await LanguageServer.From(options =>
         options.WithOutput(networkStream).WithInput(networkStream);
         Log.Logger.Debug("net stream create !");
     }
-    
+
     options
         .WithHandler<WorkspaceHandler>()
         .WithHandler<PullHandler>()
@@ -64,21 +64,29 @@ var server = await LanguageServer.From(options =>
                 );
                 workDone = manager;
                 var json = request.InitializationOptions as JObject;
-
-                if (json?["sln"] != null)
+                Log.Logger.Debug("workspace initialize ...");
+                try
                 {
-                    var workspace = server.Services.GetService<CSharpWorkspace>();
-                    if (workspace != null)
+                    if (json?["sln"] != null)
                     {
-                        var result = await workspace.OpenSolution(json.Value<string>("sln")!);
-                        workspace.Server = server;
-                        if (json["export"] != null)
+                        var workspace = server.Services.GetService<CSharpWorkspace>();
+                        if (workspace != null)
                         {
-                            workspace.SetExportNamespace(json["export"].Values<string>().ToList());
+                            var result = await workspace.OpenSolution(json.Value<string>("sln")!);
+                            
+                            workspace.Server = server;
+                            if (json["export"] != null)
+                            {
+                                workspace.SetExportNamespace(json["export"].Values<string>().ToList());
+                            }
                         }
                     }
                 }
-                
+                catch (Exception e)
+                {
+                    Log.Logger.Debug($"{e.Message} stacktrace: {e.StackTrace}");
+                }
+
                 manager.OnNext(
                     new WorkDoneProgressReport
                     {
@@ -104,6 +112,7 @@ var server = await LanguageServer.From(options =>
                     workspace.GenerateDoc();
                 }
 
+                Log.Logger.Debug("workspace completed...");
                 workDone.OnNext(
                     new WorkDoneProgressReport
                     {

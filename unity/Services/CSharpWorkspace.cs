@@ -30,8 +30,12 @@ public class CSharpWorkspace
 
     public async Task<bool> OpenSolution(string path)
     {
+        Log.Logger.Debug("open solution ...");
         var solution = await _workspace.OpenSolutionAsync(path);
+        Log.Logger.Debug("open solution completion , start assembly ...");
+        
         var project = solution?.Projects.FirstOrDefault(it => it?.Name == "Assembly-CSharp", null);
+        
         // var project = solution.Projects.FirstOrDefault(it => it?.Name == "unity", null);
         if (project != null)
         {
