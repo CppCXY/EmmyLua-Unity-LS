@@ -28,15 +28,14 @@ public class CSharpWorkspace
 
     public ILanguageServer? Server { get; set; }
 
-    public async Task<bool> OpenSolution(string path)
+    public async Task<bool> OpenSolutionAsync(string path)
     {
         Log.Logger.Debug("open solution ...");
         var solution = await _workspace.OpenSolutionAsync(path);
         Log.Logger.Debug("open solution completion , start assembly ...");
         
         var project = solution?.Projects.FirstOrDefault(it => it?.Name == "Assembly-CSharp", null);
-        
-        // var project = solution.Projects.FirstOrDefault(it => it?.Name == "unity", null);
+
         if (project != null)
         {
             _compilation = await project.GetCompilationAsync(CancellationToken.None);

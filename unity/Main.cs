@@ -72,12 +72,11 @@ var server = await LanguageServer.From(options =>
                         var workspace = server.Services.GetService<CSharpWorkspace>();
                         if (workspace != null)
                         {
-                            var result = await workspace.OpenSolution(json.Value<string>("sln")!);
-                            
+                            await workspace.OpenSolutionAsync(json.Value<string>("sln")!);
                             workspace.Server = server;
                             if (json["export"] != null)
                             {
-                                workspace.SetExportNamespace(json["export"].Values<string>().ToList());
+                                workspace.SetExportNamespace(json["export"]?.Values<string>().ToList()!);
                             }
                         }
                     }
@@ -95,8 +94,7 @@ var server = await LanguageServer.From(options =>
                     }
                 );
             }
-        ).OnInitialized(
-            async (server, request, response, token) =>
+        ).OnInitialized((server, request, response, token) =>
             {
                 workDone.OnNext(
                     new WorkDoneProgressReport
@@ -121,6 +119,7 @@ var server = await LanguageServer.From(options =>
                     }
                 );
                 workDone.OnCompleted();
+                return Task.CompletedTask;
             }
         );
 }).ConfigureAwait(false);
