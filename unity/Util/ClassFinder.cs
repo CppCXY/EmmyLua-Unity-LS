@@ -29,10 +29,6 @@ public class CustomSymbolFinder
             if (IsAllowNamespacePrefix(symbol))
             {
                 Parallel.ForEach(symbol.GetMembers(), s => s.Accept(this));
-                // foreach (var member in symbol.GetMembers())
-                // {
-                //     member.Accept(this);
-                // }
             }
         }
 

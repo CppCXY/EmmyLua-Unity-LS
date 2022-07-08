@@ -99,7 +99,8 @@ public class CSharpWorkspace
             generate.Begin();
             foreach (var symbol in symbols)
             {
-                if (symbol.DeclaredAccessibility == Accessibility.Public)
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+                if (symbol != null && symbol.DeclaredAccessibility == Accessibility.Public)
                 {
                     generate.SendClass(symbol);
                 }
