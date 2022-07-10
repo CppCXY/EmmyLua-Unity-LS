@@ -3,7 +3,7 @@ obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
-./unity.sln.DotSettings.user
+unity.sln.DotSettings.user
 .idea
 .vscode
 .vs
