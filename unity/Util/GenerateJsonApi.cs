@@ -32,17 +32,19 @@ class LuaApiMethod : LuaApiBase
     public bool IsStatic;
 }
 
-class LuaClassRequest : LuaApiBase, IRequest
+class LuaApiClass : LuaApiBase, IRequest
 {
     public string Namespace = String.Empty;
     public string BaseClass = String.Empty;
+    public string Attribute = string.Empty;
+    public List<string> Interfaces = new List<string>();
     public List<LuaApiField> Fields = new List<LuaApiField>();
     public List<LuaApiMethod> Methods = new List<LuaApiMethod>();
 }
 
 public class GenerateJsonApi
 {
-    private LuaClassRequest? _currentClass;
+    private LuaApiClass? _currentClass;
     private ILanguageServer _server;
 
     public GenerateJsonApi(ILanguageServer server)
@@ -77,6 +79,7 @@ public class GenerateJsonApi
                         {
                             case SymbolKind.Property:
                             case SymbolKind.Field:
+                            case SymbolKind.Event:
                             {
                                 WriteClassField(field);
                                 break;
@@ -88,6 +91,7 @@ public class GenerateJsonApi
                             }
                             default: break;
                         }
+                        
                     }
                 }
             }
@@ -100,11 +104,23 @@ public class GenerateJsonApi
         }
     }
 
-    private void WriteClassField(ISymbol fieldSymbol)
+    private void WriteClassField(ISymbol symbol)
     {
         var field = new LuaApiField();
-        FillBaeInfo(fieldSymbol, field);
-        field.TypeName = fieldSymbol.ContainingType?.ToString() ?? "any";
+        FillBaeInfo(symbol, field);
+        if (symbol is IFieldSymbol fieldSymbol)
+        {
+            field.TypeName = fieldSymbol.Type.ToString() ?? "any";
+        }
+        else if (symbol is IPropertySymbol propertySymbol)
+        {
+            field.TypeName = propertySymbol.Type.ToString() ?? "any";
+        }
+        else if (symbol is IEventSymbol eventSymbol)
+        {
+            field.TypeName = eventSymbol.Type.ToString() ?? "any";
+        }
+       
         _currentClass?.Fields.Add(field);
     }
 
@@ -129,10 +145,42 @@ public class GenerateJsonApi
 
     private void SetClass(INamedTypeSymbol symbol)
     {
-        _currentClass = new LuaClassRequest();
+        _currentClass = new LuaApiClass();
         if (!symbol.ContainingNamespace.IsGlobalNamespace)
         {
             _currentClass.Namespace = symbol.ContainingNamespace.ToString() ?? "";
+        }
+
+        if (!symbol.AllInterfaces.IsEmpty)
+        {
+            _currentClass.Interfaces = symbol.AllInterfaces.Select(it => it.Name).ToList();
+        }
+
+        if (symbol.TypeKind == TypeKind.Enum)
+        {
+            _currentClass.Attribute = "enum";
+            // XLua Special
+            var luaMethod = new LuaApiMethod()
+            {
+                Name = "__CastFrom",
+                Location = "",
+                Params = new List<LuaParam>()
+                {
+                    new LuaParam() {  Name = "value", TypeName = "any" }  
+                },
+                IsStatic = true,
+                ReturnTypeName = symbol.ToString() ?? "any"
+            };
+            
+            _currentClass.Methods.Add(luaMethod);
+        }
+        else if (symbol.TypeKind == TypeKind.Interface)
+        {
+            _currentClass.Attribute = "interface";
+        }
+        else if(symbol.TypeKind == TypeKind.Delegate)
+        {
+            _currentClass.Attribute = "delegate";
         }
 
         _currentClass.BaseClass = symbol.BaseType?.ToString() ?? "";
