@@ -46,11 +46,15 @@ public class GenerateJsonApi
 {
     private LuaApiClass? _currentClass;
     private ILanguageServer _server;
+    private Dictionary<INamedTypeSymbol, LuaApiClass> _class2LuaApi;
+    private Dictionary<INamedTypeSymbol, List<LuaApiMethod>> _extendMethods;
 
     public GenerateJsonApi(ILanguageServer server)
     {
         _currentClass = null;
         _server = server;
+        _class2LuaApi = new Dictionary<INamedTypeSymbol, LuaApiClass>();
+        _extendMethods = new Dictionary<INamedTypeSymbol, List<LuaApiMethod>>();
     }
 
     public void Begin()
@@ -63,7 +67,7 @@ public class GenerateJsonApi
         _server.SendNotification("api/finish");
     }
 
-    public void SendClass(ISymbol symbol)
+    public void WriteClass(ISymbol symbol)
     {
         if (symbol.Kind == SymbolKind.NamedType)
         {
@@ -91,16 +95,31 @@ public class GenerateJsonApi
                             }
                             default: break;
                         }
-                        
                     }
                 }
+
+                _class2LuaApi.Add(classSymbol, _currentClass!);
             }
             catch (Exception e)
             {
                 Log.Logger.Error(e.Message);
             }
+        }
+    }
 
-            _server.SendNotification("api/add", _currentClass!);
+    public void SendAllClass()
+    {
+        foreach (var (type, method) in _extendMethods)
+        {
+            if (_class2LuaApi.TryGetValue(type, out var luaApiClass))
+            {
+                luaApiClass.Methods.AddRange(method);
+            }
+        }
+
+        foreach (var (_, luaApiClass) in _class2LuaApi)
+        {
+            _server.SendNotification("api/add", luaApiClass);
         }
     }
 
@@ -120,7 +139,7 @@ public class GenerateJsonApi
         {
             field.TypeName = eventSymbol.Type.ToString() ?? "any";
         }
-       
+
         _currentClass?.Fields.Add(field);
     }
 
@@ -135,12 +154,44 @@ public class GenerateJsonApi
         FillBaeInfo(methodSymbol, method);
         method.IsStatic = methodSymbol.IsStatic;
         method.ReturnTypeName = methodSymbol.ReturnType.Name;
-        method.Params = methodSymbol.Parameters.Select(it => new LuaParam()
+        if (methodSymbol.IsExtensionMethod)
         {
-            Name = it.Name,
-            TypeName = it.Type.ToString() ?? "any"
-        }).ToList();
-        _currentClass?.Methods.Add(method);
+            method.IsStatic = false;
+            var parameters = methodSymbol.Parameters;
+            var thisParameter = parameters.FirstOrDefault();
+            if (thisParameter != null)
+            {
+                var thisType = thisParameter.Type;
+                method.Params = methodSymbol.Parameters
+                    .Skip(1)
+                    .Select(it => new LuaParam()
+                    {
+                        Name = it.Name,
+                        TypeName = it.Type.ToString() ?? "any"
+                    }).ToList();
+                if (thisType is INamedTypeSymbol namedTypeSymbol)
+                {
+                    if (_extendMethods.ContainsKey(namedTypeSymbol))
+                    {
+                        _extendMethods[namedTypeSymbol].Add(method);
+                    }
+                    else
+                    {
+                        _extendMethods.Add(namedTypeSymbol, new List<LuaApiMethod>() { method });
+                    }
+                }
+            }
+        }
+        else
+        {
+            method.Params = methodSymbol.Parameters.Select(it => new LuaParam()
+            {
+                Name = it.Name,
+                TypeName = it.Type.ToString() ?? "any"
+            }).ToList();
+
+            _currentClass?.Methods.Add(method);
+        }
     }
 
     private void SetClass(INamedTypeSymbol symbol)
@@ -166,19 +217,19 @@ public class GenerateJsonApi
                 Location = "",
                 Params = new List<LuaParam>()
                 {
-                    new LuaParam() {  Name = "value", TypeName = "any" }  
+                    new LuaParam() { Name = "value", TypeName = "any" }
                 },
                 IsStatic = true,
                 ReturnTypeName = symbol.ToString() ?? "any"
             };
-            
+
             _currentClass.Methods.Add(luaMethod);
         }
         else if (symbol.TypeKind == TypeKind.Interface)
         {
             _currentClass.Attribute = "interface";
         }
-        else if(symbol.TypeKind == TypeKind.Delegate)
+        else if (symbol.TypeKind == TypeKind.Delegate)
         {
             _currentClass.Attribute = "delegate";
         }
@@ -281,7 +332,7 @@ public class GenerateJsonApi
             {
                 sb.Append($"{param}\n{indent}");
             }
-            
+
             sb.Append("\n```\n\n");
         }
 

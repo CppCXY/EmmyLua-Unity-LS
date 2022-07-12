@@ -101,9 +101,11 @@ public class CSharpWorkspace
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
                 if (symbol != null && symbol.DeclaredAccessibility == Accessibility.Public)
                 {
-                    generate.SendClass(symbol);
+                    generate.WriteClass(symbol);
                 }
             }
+
+            generate.SendAllClass();
         }
         catch (Exception e)
         {
