@@ -2,6 +2,7 @@
 using System.Xml;
 using MediatR;
 using Microsoft.CodeAnalysis;
+using Newtonsoft.Json;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using Serilog;
 
@@ -40,6 +41,12 @@ class LuaApiClass : LuaApiBase, IRequest
     public List<string> Interfaces = new List<string>();
     public List<LuaApiField> Fields = new List<LuaApiField>();
     public List<LuaApiMethod> Methods = new List<LuaApiMethod>();
+}
+
+class LuaReportApiParams
+{
+    public string Root = String.Empty;
+    public List<LuaApiClass> Classes = new List<LuaApiClass>();
 }
 
 public class GenerateJsonApi
@@ -121,6 +128,24 @@ public class GenerateJsonApi
         {
             _server.SendNotification("api/add", luaApiClass);
         }
+    }
+
+    public void Output()
+    {
+        foreach (var (type, method) in _extendMethods)
+        {
+            if (_class2LuaApi.TryGetValue(type, out var luaApiClass))
+            {
+                luaApiClass.Methods.AddRange(method);
+            }
+        }
+
+        var param = new LuaReportApiParams()
+        {
+            Root = "CS",
+            Classes = _class2LuaApi.Select(it => it.Value).ToList(),
+        };
+        Console.Write(JsonConvert.SerializeObject(param));
     }
 
     private void WriteClassField(ISymbol symbol)

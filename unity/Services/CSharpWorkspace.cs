@@ -1,5 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
-using Microsoft.Build.Locator;
+// using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.MSBuild;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
@@ -17,7 +17,7 @@ public class CSharpWorkspace
 
     public CSharpWorkspace()
     {
-        MSBuildLocator.RegisterDefaults();
+        // MSBuildLocator.RegisterDefaults();
         _workspace = MSBuildWorkspace.Create();
         _treeMap = new Dictionary<string, SyntaxTree>();
         _exportNamespace = new List<string>()
@@ -114,6 +114,37 @@ public class CSharpWorkspace
         finally
         {
             generate.Finish();
+        }
+    }
+    
+    public void GenerateDocStdout()
+    {
+        if (_compilation == null)
+        {
+            return;
+        }
+
+        var finder = new CustomSymbolFinder();
+
+        var symbols = finder.GetAllSymbols(_compilation, _exportNamespace);
+        
+        var generate = new GenerateJsonApi(Server!);
+        try
+        {
+            foreach (var symbol in symbols)
+            {
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+                if (symbol != null && symbol.DeclaredAccessibility == Accessibility.Public)
+                {
+                    generate.WriteClass(symbol);
+                }
+            }
+
+            generate.Output();
+        }
+        catch (Exception e)
+        {
+            Log.Logger.Error($"message: {e.Message}\n stacktrace: {e.StackTrace}");
         }
     }
 }
