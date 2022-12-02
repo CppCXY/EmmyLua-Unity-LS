@@ -3,6 +3,7 @@ using System.Xml;
 using MediatR;
 using Microsoft.CodeAnalysis;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using Serilog;
 
@@ -145,7 +146,9 @@ public class GenerateJsonApi
             Root = "CS",
             Classes = _class2LuaApi.Select(it => it.Value).ToList(),
         };
-        Console.Write(JsonConvert.SerializeObject(param));
+        JsonSerializerSettings settings = new JsonSerializerSettings();
+        settings.ContractResolver = new CamelCasePropertyNamesContractResolver();
+        Console.Write(JsonConvert.SerializeObject(param, settings));
     }
 
     private void WriteClassField(ISymbol symbol)
