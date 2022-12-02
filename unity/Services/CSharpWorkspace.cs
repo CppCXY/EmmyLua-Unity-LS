@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Microsoft.Build.Locator;
+using Microsoft.CodeAnalysis;
 // using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.MSBuild;
@@ -17,7 +18,7 @@ public class CSharpWorkspace
 
     public CSharpWorkspace()
     {
-        // MSBuildLocator.RegisterDefaults();
+        MSBuildLocator.RegisterDefaults();
         _workspace = MSBuildWorkspace.Create();
         _treeMap = new Dictionary<string, SyntaxTree>();
         _exportNamespace = new List<string>()
