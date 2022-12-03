@@ -7,7 +7,7 @@ using Newtonsoft.Json.Serialization;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using Serilog;
 
-namespace unity.Util;
+namespace unity.core;
 
 class LuaApiBase
 {

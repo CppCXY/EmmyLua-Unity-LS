@@ -1,13 +1,11 @@
 ﻿using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
-// using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.MSBuild;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using Serilog;
-using unity.Util;
 
-namespace unity.Services;
+namespace unity.core;
 
 public class CSharpWorkspace
 {
@@ -18,7 +16,6 @@ public class CSharpWorkspace
 
     public CSharpWorkspace()
     {
-        MSBuildLocator.RegisterDefaults();
         _workspace = MSBuildWorkspace.Create();
         _treeMap = new Dictionary<string, SyntaxTree>();
         _exportNamespace = new List<string>()
@@ -34,7 +31,7 @@ public class CSharpWorkspace
         Log.Logger.Debug("open solution ...");
         var solution = await _workspace.OpenSolutionAsync(path);
         Log.Logger.Debug("open solution completion , start assembly ...");
-        
+
         var project = solution?.Projects.FirstOrDefault(it => it?.Name == "Assembly-CSharp", null);
 
         if (project != null)
@@ -81,7 +78,7 @@ public class CSharpWorkspace
     {
         _exportNamespace = exportNamespace;
     }
-    
+
     public void GenerateDoc()
     {
         if (_compilation == null)
@@ -92,7 +89,7 @@ public class CSharpWorkspace
         var finder = new CustomSymbolFinder();
 
         var symbols = finder.GetAllSymbols(_compilation, _exportNamespace);
-        
+
         var generate = new GenerateJsonApi(Server!);
         try
         {
@@ -117,7 +114,7 @@ public class CSharpWorkspace
             generate.Finish();
         }
     }
-    
+
     public void GenerateDocStdout()
     {
         if (_compilation == null)
@@ -128,7 +125,7 @@ public class CSharpWorkspace
         var finder = new CustomSymbolFinder();
 
         var symbols = finder.GetAllSymbols(_compilation, _exportNamespace);
-        
+
         var generate = new GenerateJsonApi(Server!);
         try
         {

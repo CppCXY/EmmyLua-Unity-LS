@@ -1,7 +1,7 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
 using OmniSharp.Extensions.JsonRpc;
-using unity.Services;
+using unity.core;
 
 namespace unity.Lsp;
 

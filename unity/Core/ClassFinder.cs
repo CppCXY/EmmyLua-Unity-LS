@@ -1,6 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 
-namespace unity.Util;
+namespace unity.core;
 
 public class CustomSymbolFinder
 {
