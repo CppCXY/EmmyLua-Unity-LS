@@ -18,7 +18,7 @@ public class Server
     {
     }
 
-    public async void Start(string[] args)
+    public async Task Start(string[] args)
     {
         var server = await LanguageServer.From(options =>
         {
