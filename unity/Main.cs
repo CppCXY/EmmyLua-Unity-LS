@@ -15,7 +15,7 @@ MSBuildLocator.RegisterDefaults();
 if (args.Length < 2)
 {
     var server = new Server();
-    server.Start(args);
+    await server.Start(args);
 }
 else
 {

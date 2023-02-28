@@ -82,6 +82,10 @@ public class GenerateJsonApi
             try
             {
                 var classSymbol = (symbol as INamedTypeSymbol)!;
+                if (classSymbol.BaseType != null && classSymbol.BaseType.IsGenericType)
+                {
+                    WriteClass(classSymbol.BaseType);
+                }
                 SetClass(classSymbol);
                 foreach (var field in classSymbol.GetMembers())
                 {
@@ -181,7 +185,7 @@ public class GenerateJsonApi
         var method = new LuaApiMethod();
         FillBaeInfo(methodSymbol, method);
         method.IsStatic = methodSymbol.IsStatic;
-        method.ReturnTypeName = methodSymbol.ReturnType.Name;
+        method.ReturnTypeName = methodSymbol.ReturnType.ContainingNamespace + "." +  methodSymbol.ReturnType.Name;
         if (methodSymbol.IsExtensionMethod)
         {
             method.IsStatic = false;
@@ -271,6 +275,10 @@ public class GenerateJsonApi
         if (_currentClass != null)
         {
             apiBase.Name = symbol.Name;
+            if (symbol is INamedTypeSymbol namedTypeSymbol && namedTypeSymbol.TypeArguments.Length > 0)
+            {
+                apiBase.Name += "<" + string.Join(",", namedTypeSymbol.TypeArguments.Select(x => x.ToDisplayString())) + ">";
+            }
             if (!symbol.Locations.IsEmpty)
             {
                 var location = symbol.Locations.First();
