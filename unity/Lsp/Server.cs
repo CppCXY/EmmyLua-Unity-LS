@@ -44,7 +44,6 @@ public class Server
             }
 
             options
-                .WithHandler<WorkspaceHandler>()
                 .WithHandler<PullHandler>()
                 .ConfigureLogging(
                     x => x
@@ -66,28 +65,6 @@ public class Server
                             }
                         );
                         workDone = manager;
-                        var json = request.InitializationOptions as JObject;
-                        Log.Logger.Debug("workspace initialize ...");
-                        try
-                        {
-                            if (json?["sln"] != null)
-                            {
-                                var workspace = server.Services.GetService<CSharpWorkspace>();
-                                if (workspace != null)
-                                {
-                                    await workspace.OpenSolutionAsync(json.Value<string>("sln")!);
-                                    workspace.Server = server;
-                                    if (json["export"] != null)
-                                    {
-                                        workspace.SetExportNamespace(json["export"]?.Values<string>().ToList()!);
-                                    }
-                                }
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            Log.Logger.Debug($"{e.Message} stacktrace: {e.StackTrace}");
-                        }
 
                         manager.OnNext(
                             new WorkDoneProgressReport
@@ -99,20 +76,6 @@ public class Server
                     }
                 ).OnInitialized((server, request, response, token) =>
                     {
-                        workDone.OnNext(
-                            new WorkDoneProgressReport
-                            {
-                                Percentage = 40,
-                                Message = "loading unity project...",
-                            }
-                        );
-
-                        var workspace = server.Services.GetService<CSharpWorkspace>();
-                        if (workspace != null)
-                        {
-                            workspace.GenerateDoc();
-                        }
-
                         Log.Logger.Debug("workspace completed...");
                         workDone.OnNext(
                             new WorkDoneProgressReport
@@ -121,6 +84,12 @@ public class Server
                                 Percentage = 100,
                             }
                         );
+                        var workspace = server.Services.GetService<CSharpWorkspace>();
+                        if (workspace != null)
+                        {
+                            workspace.Server = server;
+                        }
+
                         workDone.OnCompleted();
                         return Task.CompletedTask;
                     }

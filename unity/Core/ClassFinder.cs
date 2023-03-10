@@ -26,21 +26,18 @@ public class CustomSymbolFinder
 
         public override void VisitNamespace(INamespaceSymbol symbol)
         {
-            if (IsAllowNamespacePrefix(symbol))
-            {
-                Parallel.ForEach(symbol.GetMembers(), s => s.Accept(this));
-            }
+            Parallel.ForEach(symbol.GetMembers(), s => s.Accept(this));
         }
 
         public override void VisitNamedType(INamedTypeSymbol symbol)
         {
-            if (symbol.DeclaredAccessibility == Accessibility.Public)
+            if (!IsAllowNamespacePrefix(symbol.ContainingNamespace) ||
+                symbol.DeclaredAccessibility != Accessibility.Public) return;
+            
+            AllTypeSymbols.Add(symbol);
+            foreach (var childSymbol in symbol.GetTypeMembers())
             {
-                AllTypeSymbols.Add(symbol);
-                foreach (var childSymbol in symbol.GetTypeMembers())
-                {
-                    base.Visit(childSymbol);
-                }
+                base.Visit(childSymbol);
             }
         }
 

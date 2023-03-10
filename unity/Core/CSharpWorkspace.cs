@@ -1,6 +1,4 @@
-﻿using Microsoft.Build.Locator;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
+﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using Serilog;
@@ -9,15 +7,12 @@ namespace unity.core;
 
 public class CSharpWorkspace
 {
-    private readonly MSBuildWorkspace _workspace;
-    private Compilation? _compilation;
-    private Dictionary<string, SyntaxTree> _treeMap;
     private List<string> _exportNamespace;
+    private List<Compilation> _compilations;
 
     public CSharpWorkspace()
     {
-        _workspace = MSBuildWorkspace.Create();
-        _treeMap = new Dictionary<string, SyntaxTree>();
+        _compilations = new List<Compilation>();
         _exportNamespace = new List<string>()
         {
             "UnityEngine"
@@ -26,52 +21,26 @@ public class CSharpWorkspace
 
     public ILanguageServer? Server { get; set; }
 
-    public async Task<bool> OpenSolutionAsync(string path)
+    public async Task OpenSolutionAsync(string path, Dictionary<string, string> msbuildProperties)
     {
+        var workspace = MSBuildWorkspace.Create(msbuildProperties);
         Log.Logger.Debug("open solution ...");
-        var solution = await _workspace.OpenSolutionAsync(path);
+        var solution = await workspace.OpenSolutionAsync(path);
+        foreach (var diagnostic in workspace.Diagnostics)
+        {
+            Log.Logger.Debug(diagnostic.ToString());
+        }
+
         Log.Logger.Debug("open solution completion , start assembly ...");
 
-        var project = solution?.Projects.FirstOrDefault(it => it?.Name == "Assembly-CSharp", null);
-
-        if (project != null)
+        List<Compilation> projectCompilationList = new List<Compilation>();
+        foreach (var project in solution.Projects)
         {
-            _compilation = await project.GetCompilationAsync(CancellationToken.None);
-            if (_compilation != null)
-            {
-                foreach (var tree in _compilation.SyntaxTrees)
-                {
-                    _treeMap.Add(tree.FilePath, tree);
-                }
-            }
+            var compilation = await project.GetCompilationAsync(CancellationToken.None);
+            projectCompilationList.Add(compilation);
         }
 
-        return _compilation != null;
-    }
-
-    public void ApplyChange(string path)
-    {
-        var text = File.ReadAllText(path);
-        var tree = CSharpSyntaxTree.ParseText(text, null, path);
-        if (_treeMap.TryGetValue(path, out var oldTree))
-        {
-            _compilation = _compilation?.ReplaceSyntaxTree(oldTree, tree);
-            _treeMap[path] = tree;
-        }
-        else
-        {
-            _compilation = _compilation?.AddSyntaxTrees(tree);
-            _treeMap.Add(path, tree);
-        }
-    }
-
-    public void ApplyDelete(string path)
-    {
-        if (_treeMap.TryGetValue(path, out var tree))
-        {
-            _compilation = _compilation?.RemoveSyntaxTrees(tree);
-            _treeMap.Remove(path);
-        }
+        _compilations = projectCompilationList;
     }
 
     public void SetExportNamespace(List<string> exportNamespace)
@@ -81,25 +50,21 @@ public class CSharpWorkspace
 
     public void GenerateDoc()
     {
-        if (_compilation == null)
-        {
-            return;
-        }
-
-        var finder = new CustomSymbolFinder();
-
-        var symbols = finder.GetAllSymbols(_compilation, _exportNamespace);
-
         var generate = new GenerateJsonApi(Server!);
         try
         {
             generate.Begin();
-            foreach (var symbol in symbols)
+            foreach (var compilation in _compilations)
             {
-                // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-                if (symbol != null && symbol.DeclaredAccessibility == Accessibility.Public)
+                var finder = new CustomSymbolFinder();
+                var symbols = finder.GetAllSymbols(compilation, _exportNamespace);
+                foreach (var symbol in symbols)
                 {
-                    generate.WriteClass(symbol);
+                    // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+                    if (symbol != null && symbol.DeclaredAccessibility == Accessibility.Public)
+                    {
+                        generate.WriteClass(symbol);
+                    }
                 }
             }
 
@@ -117,24 +82,20 @@ public class CSharpWorkspace
 
     public void GenerateDocStdout()
     {
-        if (_compilation == null)
-        {
-            return;
-        }
-
-        var finder = new CustomSymbolFinder();
-
-        var symbols = finder.GetAllSymbols(_compilation, _exportNamespace);
-
         var generate = new GenerateJsonApi(Server!);
         try
         {
-            foreach (var symbol in symbols)
+            foreach (var compilation in _compilations)
             {
-                // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-                if (symbol != null && symbol.DeclaredAccessibility == Accessibility.Public)
+                var finder = new CustomSymbolFinder();
+                var symbols = finder.GetAllSymbols(compilation, _exportNamespace);
+                foreach (var symbol in symbols)
                 {
-                    generate.WriteClass(symbol);
+                    // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+                    if (symbol != null && symbol.DeclaredAccessibility == Accessibility.Public)
+                    {
+                        generate.WriteClass(symbol);
+                    }
                 }
             }
 
