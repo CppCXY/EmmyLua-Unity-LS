@@ -28,7 +28,7 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
-      run: dotnet publish -r ${{ matrix.target }} -c Release --property:OutputPath=${{ github.workspace }}/artifact /p:PublishSingleFile=true 
+      run: dotnet publish -r ${{ matrix.target }} -c Release --property:OutputPath=${{ github.workspace }}/artifact
     - name: Upload
       uses: actions/upload-artifact@v2
       with: 
