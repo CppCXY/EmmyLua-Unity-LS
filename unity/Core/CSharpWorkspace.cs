@@ -33,7 +33,7 @@ public class CSharpWorkspace
 
         Log.Logger.Debug("open solution completion , start assembly ...");
 
-        List<Compilation> projectCompilationList = new List<Compilation>();
+        var projectCompilationList = new List<Compilation>();
         foreach (var project in solution.Projects)
         {
             var compilation = await project.GetCompilationAsync(CancellationToken.None);
@@ -54,18 +54,14 @@ public class CSharpWorkspace
         try
         {
             generate.Begin();
-            foreach (var compilation in _compilations)
+            foreach (var symbol in from compilation in _compilations
+                     let finder = new CustomSymbolFinder()
+                     select finder.GetAllSymbols(compilation, _exportNamespace)
+                     into symbols
+                     from symbol in symbols.Where(symbol => symbol is { DeclaredAccessibility: Accessibility.Public })
+                     select symbol)
             {
-                var finder = new CustomSymbolFinder();
-                var symbols = finder.GetAllSymbols(compilation, _exportNamespace);
-                foreach (var symbol in symbols)
-                {
-                    // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-                    if (symbol != null && symbol.DeclaredAccessibility == Accessibility.Public)
-                    {
-                        generate.WriteClass(symbol);
-                    }
-                }
+                generate.WriteClass(symbol);
             }
 
             generate.SendAllClass();
@@ -89,13 +85,10 @@ public class CSharpWorkspace
             {
                 var finder = new CustomSymbolFinder();
                 var symbols = finder.GetAllSymbols(compilation, _exportNamespace);
-                foreach (var symbol in symbols)
+                foreach (var symbol in symbols.Where(
+                             symbol => symbol is { DeclaredAccessibility: Accessibility.Public }))
                 {
-                    // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-                    if (symbol != null && symbol.DeclaredAccessibility == Accessibility.Public)
-                    {
-                        generate.WriteClass(symbol);
-                    }
+                    generate.WriteClass(symbol);
                 }
             }
 
