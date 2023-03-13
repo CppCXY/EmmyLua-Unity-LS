@@ -81,15 +81,15 @@ public class CSharpWorkspace
         var generate = new GenerateJsonApi(Server!);
         try
         {
-            foreach (var compilation in _compilations)
+            foreach (var symbol in from compilation in _compilations
+                     let finder = new CustomSymbolFinder()
+                     select finder.GetAllSymbols(compilation, _exportNamespace)
+                     into symbols
+                     from symbol in symbols.Where(
+                         symbol => symbol is { DeclaredAccessibility: Accessibility.Public })
+                     select symbol)
             {
-                var finder = new CustomSymbolFinder();
-                var symbols = finder.GetAllSymbols(compilation, _exportNamespace);
-                foreach (var symbol in symbols.Where(
-                             symbol => symbol is { DeclaredAccessibility: Accessibility.Public }))
-                {
-                    generate.WriteClass(symbol);
-                }
+                generate.WriteClass(symbol);
             }
 
             generate.Output();
