@@ -77,45 +77,49 @@ public class GenerateJsonApi
 
     public void WriteClass(ISymbol symbol)
     {
-        if (symbol.Kind == SymbolKind.NamedType)
+        if (symbol.Kind != SymbolKind.NamedType) return;
+        try
         {
-            try
+            var classSymbol = (symbol as INamedTypeSymbol)!;
+            if (_class2LuaApi.ContainsKey(classSymbol) || classSymbol.IsNamespace)
             {
-                var classSymbol = (symbol as INamedTypeSymbol)!;
-                if (classSymbol.BaseType != null && classSymbol.BaseType.IsGenericType)
+                return;
+            }
+
+            if (classSymbol.BaseType is { IsGenericType: true })
+            {
+                WriteClass(classSymbol.BaseType);
+            }
+
+            SetClass(classSymbol);
+            foreach (var field in classSymbol.GetMembers())
+            {
+                if (field.DeclaredAccessibility == Accessibility.Public)
                 {
-                    WriteClass(classSymbol.BaseType);
-                }
-                SetClass(classSymbol);
-                foreach (var field in classSymbol.GetMembers())
-                {
-                    if (field.DeclaredAccessibility == Accessibility.Public)
+                    switch (field.Kind)
                     {
-                        switch (field.Kind)
+                        case SymbolKind.Property:
+                        case SymbolKind.Field:
+                        case SymbolKind.Event:
                         {
-                            case SymbolKind.Property:
-                            case SymbolKind.Field:
-                            case SymbolKind.Event:
-                            {
-                                WriteClassField(field);
-                                break;
-                            }
-                            case SymbolKind.Method:
-                            {
-                                WriteClassFunction((field as IMethodSymbol)!);
-                                break;
-                            }
-                            default: break;
+                            WriteClassField(field);
+                            break;
                         }
+                        case SymbolKind.Method:
+                        {
+                            WriteClassFunction((field as IMethodSymbol)!);
+                            break;
+                        }
+                        default: break;
                     }
                 }
+            }
 
-                _class2LuaApi.Add(classSymbol, _currentClass!);
-            }
-            catch (Exception e)
-            {
-                Log.Logger.Error(e.Message);
-            }
+            _class2LuaApi.Add(classSymbol, _currentClass!);
+        }
+        catch (Exception e)
+        {
+            Log.Logger.Error(e.Message);
         }
     }
 
@@ -185,7 +189,7 @@ public class GenerateJsonApi
         var method = new LuaApiMethod();
         FillBaeInfo(methodSymbol, method);
         method.IsStatic = methodSymbol.IsStatic;
-        method.ReturnTypeName = methodSymbol.ReturnType.ContainingNamespace + "." +  methodSymbol.ReturnType.Name;
+        method.ReturnTypeName = methodSymbol.ReturnType.ContainingNamespace + "." + methodSymbol.ReturnType.Name;
         if (methodSymbol.IsExtensionMethod)
         {
             method.IsStatic = false;
@@ -234,36 +238,51 @@ public class GenerateJsonApi
             _currentClass.Namespace = symbol.ContainingNamespace.ToString() ?? "";
         }
 
+        if (_currentClass.Namespace.Length == 0 && symbol.ContainingSymbol != null)
+        {
+            _currentClass.Namespace = symbol.ContainingSymbol.ToString()!;
+        }
+
         if (!symbol.AllInterfaces.IsEmpty)
         {
             _currentClass.Interfaces = symbol.AllInterfaces.Select(it => it.Name).ToList();
         }
 
-        if (symbol.TypeKind == TypeKind.Enum)
+        switch (symbol.TypeKind)
         {
-            _currentClass.Attribute = "enum";
-            // XLua Special
-            var luaMethod = new LuaApiMethod()
+            case TypeKind.Enum:
             {
-                Name = "__CastFrom",
-                Location = "",
-                Params = new List<LuaParam>()
+                _currentClass.Attribute = "enum";
+                // XLua Special
+                var luaMethod = new LuaApiMethod()
                 {
-                    new LuaParam() { Name = "value", TypeName = "any" }
-                },
-                IsStatic = true,
-                ReturnTypeName = symbol.ToString() ?? "any"
-            };
+                    Name = "__CastFrom",
+                    Location = "",
+                    Params = new List<LuaParam>()
+                    {
+                        new LuaParam() { Name = "value", TypeName = "any" }
+                    },
+                    IsStatic = true,
+                    ReturnTypeName = symbol.ToString() ?? "any"
+                };
 
-            _currentClass.Methods.Add(luaMethod);
-        }
-        else if (symbol.TypeKind == TypeKind.Interface)
-        {
-            _currentClass.Attribute = "interface";
-        }
-        else if (symbol.TypeKind == TypeKind.Delegate)
-        {
-            _currentClass.Attribute = "delegate";
+                _currentClass.Methods.Add(luaMethod);
+                break;
+            }
+            case TypeKind.Interface:
+                _currentClass.Attribute = "interface";
+                break;
+            case TypeKind.Delegate:
+                _currentClass.Attribute = "delegate";
+                break;
+            case TypeKind.Struct:
+                _currentClass.Attribute = "struct";
+                break;
+            case TypeKind.Class:
+                _currentClass.Attribute = "class";
+                break;
+            default:
+                break;
         }
 
         _currentClass.BaseClass = symbol.BaseType?.ToString() ?? "";
@@ -275,10 +294,12 @@ public class GenerateJsonApi
         if (_currentClass != null)
         {
             apiBase.Name = symbol.Name;
-            if (symbol is INamedTypeSymbol namedTypeSymbol && namedTypeSymbol.TypeArguments.Length > 0)
+            if (symbol is INamedTypeSymbol { TypeArguments.Length: > 0 } namedTypeSymbol)
             {
-                apiBase.Name += "<" + string.Join(",", namedTypeSymbol.TypeArguments.Select(x => x.ToDisplayString())) + ">";
+                apiBase.Name += "<" + string.Join(",", namedTypeSymbol.TypeArguments.Select(x => x.ToDisplayString())) +
+                                ">";
             }
+
             if (!symbol.Locations.IsEmpty)
             {
                 var location = symbol.Locations.First();
