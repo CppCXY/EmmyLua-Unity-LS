@@ -31,8 +31,8 @@ public class CustomSymbolFinder
 
         public override void VisitNamedType(INamedTypeSymbol symbol)
         {
-            if (!IsAllowNamespacePrefix(symbol.ContainingNamespace) ||
-                symbol.DeclaredAccessibility != Accessibility.Public) return;
+            if (symbol.DeclaredAccessibility != Accessibility.Public
+                || !IsAllowNamespacePrefix(symbol.ContainingNamespace)) return;
             
             AllTypeSymbols.Add(symbol);
             foreach (var childSymbol in symbol.GetTypeMembers())

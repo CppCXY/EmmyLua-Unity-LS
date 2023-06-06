@@ -11,33 +11,35 @@ namespace unity.core;
 
 class LuaApiBase
 {
-    public string Name { get; set; } = String.Empty;
-    public string Comment { get; set; } = String.Empty;
-    public string Location { get; set; } = String.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Comment { get; set; } = string.Empty;
+    public string Location { get; set; } = string.Empty;
 }
 
 class LuaApiField : LuaApiBase
 {
-    public string TypeName = String.Empty;
+    public string TypeName = string.Empty;
 }
 
 class LuaParam
 {
-    public string Name { get; set; } = String.Empty;
-    public string TypeName { get; set; } = String.Empty;
+    public string Name { get; set; } = string.Empty;
+
+    public string Kind { get; set; } = string.Empty;
+    public string TypeName { get; set; } = string.Empty;
 }
 
 class LuaApiMethod : LuaApiBase
 {
-    public string ReturnTypeName = String.Empty;
+    public string ReturnTypeName = string.Empty;
     public List<LuaParam> Params = new List<LuaParam>();
     public bool IsStatic;
 }
 
 class LuaApiClass : LuaApiBase, IRequest
 {
-    public string Namespace = String.Empty;
-    public string BaseClass = String.Empty;
+    public string Namespace = string.Empty;
+    public string BaseClass = string.Empty;
     public string Attribute = string.Empty;
     public List<string> Interfaces = new List<string>();
     public List<LuaApiField> Fields = new List<LuaApiField>();
@@ -46,23 +48,21 @@ class LuaApiClass : LuaApiBase, IRequest
 
 class LuaReportApiParams
 {
-    public string Root = String.Empty;
-    public List<LuaApiClass> Classes = new List<LuaApiClass>();
+    public string Root = string.Empty;
+    public List<LuaApiClass> Classes = new();
 }
 
 public class GenerateJsonApi
 {
     private LuaApiClass? _currentClass;
-    private ILanguageServer _server;
-    private Dictionary<INamedTypeSymbol, LuaApiClass> _class2LuaApi;
-    private Dictionary<INamedTypeSymbol, List<LuaApiMethod>> _extendMethods;
+    private readonly ILanguageServer _server;
+    private readonly Dictionary<INamedTypeSymbol, LuaApiClass> _class2LuaApi = new();
+    private readonly Dictionary<INamedTypeSymbol, List<LuaApiMethod>> _extendMethods = new();
 
     public GenerateJsonApi(ILanguageServer server)
     {
         _currentClass = null;
         _server = server;
-        _class2LuaApi = new Dictionary<INamedTypeSymbol, LuaApiClass>();
-        _extendMethods = new Dictionary<INamedTypeSymbol, List<LuaApiMethod>>();
     }
 
     public void Begin()
@@ -92,26 +92,24 @@ public class GenerateJsonApi
             }
 
             SetClass(classSymbol);
-            foreach (var field in classSymbol.GetMembers())
+            foreach (var field in classSymbol.GetMembers()
+                         .Where(field => field.DeclaredAccessibility == Accessibility.Public))
             {
-                if (field.DeclaredAccessibility == Accessibility.Public)
+                switch (field.Kind)
                 {
-                    switch (field.Kind)
+                    case SymbolKind.Property:
+                    case SymbolKind.Field:
+                    case SymbolKind.Event:
                     {
-                        case SymbolKind.Property:
-                        case SymbolKind.Field:
-                        case SymbolKind.Event:
-                        {
-                            WriteClassField(field);
-                            break;
-                        }
-                        case SymbolKind.Method:
-                        {
-                            WriteClassFunction((field as IMethodSymbol)!);
-                            break;
-                        }
-                        default: break;
+                        WriteClassField(field);
+                        break;
                     }
+                    case SymbolKind.Method:
+                    {
+                        WriteClassFunction((field as IMethodSymbol)!);
+                        break;
+                    }
+                    default: break;
                 }
             }
 
@@ -154,8 +152,10 @@ public class GenerateJsonApi
             Root = "CS",
             Classes = _class2LuaApi.Select(it => it.Value).ToList(),
         };
-        JsonSerializerSettings settings = new JsonSerializerSettings();
-        settings.ContractResolver = new CamelCasePropertyNamesContractResolver();
+        var settings = new JsonSerializerSettings
+        {
+            ContractResolver = new CamelCasePropertyNamesContractResolver()
+        };
         Console.Write(JsonConvert.SerializeObject(param, settings));
     }
 
@@ -189,43 +189,42 @@ public class GenerateJsonApi
         var method = new LuaApiMethod();
         FillBaeInfo(methodSymbol, method);
         method.IsStatic = methodSymbol.IsStatic;
-        method.ReturnTypeName = methodSymbol.ReturnType.ContainingNamespace + "." + methodSymbol.ReturnType.Name;
+        method.ReturnTypeName = methodSymbol.ReturnType.ToString() ?? "any";
         if (methodSymbol.IsExtensionMethod)
         {
             method.IsStatic = false;
             var parameters = methodSymbol.Parameters;
             var thisParameter = parameters.FirstOrDefault();
-            if (thisParameter != null)
-            {
-                var thisType = thisParameter.Type;
-                method.Params = methodSymbol.Parameters
-                    .Skip(1)
-                    .Select(it => new LuaParam()
-                    {
-                        Name = it.Name,
-                        TypeName = it.Type.ToString() ?? "any"
-                    }).ToList();
-                if (thisType is INamedTypeSymbol namedTypeSymbol)
+            if (thisParameter == null) return;
+            var thisType = thisParameter.Type;
+            method.Params = methodSymbol.Parameters
+                .Skip(1)
+                .Select(it => new LuaParam()
                 {
-                    if (_extendMethods.ContainsKey(namedTypeSymbol))
-                    {
-                        _extendMethods[namedTypeSymbol].Add(method);
-                    }
-                    else
-                    {
-                        _extendMethods.Add(namedTypeSymbol, new List<LuaApiMethod>() { method });
-                    }
-                }
+                    Name = it.Name + (it.IsOptional ? "?" : ""),
+                    Kind = it.RefKind.ToString(),
+                    TypeName = it.Type.ToString() ?? "any"
+                }).ToList();
+            
+            if (thisType is not INamedTypeSymbol namedTypeSymbol) return;
+            if (_extendMethods.TryGetValue(namedTypeSymbol, out var extendMethod))
+            {
+                extendMethod.Add(method);
+            }
+            else
+            {
+                _extendMethods.Add(namedTypeSymbol, new List<LuaApiMethod>() { method });
             }
         }
         else
         {
-            method.Params = methodSymbol.Parameters.Select(it => new LuaParam()
+            method.Params = methodSymbol.Parameters
+                .Select(it => new LuaParam()
             {
-                Name = it.Name,
+                Name = it.Name + (it.IsOptional ? "?" : ""),
+                Kind = it.RefKind.ToString(),
                 TypeName = it.Type.ToString() ?? "any"
             }).ToList();
-
             _currentClass?.Methods.Add(method);
         }
     }
@@ -233,14 +232,14 @@ public class GenerateJsonApi
     private void SetClass(INamedTypeSymbol symbol)
     {
         _currentClass = new LuaApiClass();
-        if (!symbol.ContainingNamespace.IsGlobalNamespace)
-        {
-            _currentClass.Namespace = symbol.ContainingNamespace.ToString() ?? "";
-        }
 
-        if (_currentClass.Namespace.Length == 0 && symbol.ContainingSymbol != null)
+        if (symbol.ContainingSymbol != null)
         {
             _currentClass.Namespace = symbol.ContainingSymbol.ToString()!;
+            if (_currentClass.Namespace == "<global namespace>")
+            {
+                _currentClass.Namespace = "";
+            }
         }
 
         if (!symbol.AllInterfaces.IsEmpty)
@@ -291,40 +290,38 @@ public class GenerateJsonApi
 
     private void FillBaeInfo(ISymbol symbol, LuaApiBase apiBase)
     {
-        if (_currentClass != null)
+        if (_currentClass == null) return;
+        apiBase.Name = symbol.Name;
+        if (symbol is INamedTypeSymbol { TypeArguments.Length: > 0 } namedTypeSymbol)
         {
-            apiBase.Name = symbol.Name;
-            if (symbol is INamedTypeSymbol { TypeArguments.Length: > 0 } namedTypeSymbol)
-            {
-                apiBase.Name += "<" + string.Join(",", namedTypeSymbol.TypeArguments.Select(x => x.ToDisplayString())) +
-                                ">";
-            }
+            apiBase.Name += "<" + string.Join(",", namedTypeSymbol.TypeArguments.Select(x => x.ToDisplayString())) +
+                            ">";
+        }
 
-            if (!symbol.Locations.IsEmpty)
+        if (!symbol.Locations.IsEmpty)
+        {
+            var location = symbol.Locations.First();
+            if (location.IsInMetadata)
             {
-                var location = symbol.Locations.First();
-                if (location.IsInMetadata)
-                {
-                    apiBase.Location = location.MetadataModule?.ToString() ?? "";
-                }
-                else if (location.IsInSource)
-                {
-                    var lineSpan = location.SourceTree.GetLineSpan(location.SourceSpan);
-
-                    apiBase.Location =
-                        $"{new Uri(location.SourceTree.FilePath)}#{lineSpan.Span.Start.Line + 1}";
-                }
+                apiBase.Location = location.MetadataModule?.ToString() ?? "";
             }
-
-            var comment = symbol.GetDocumentationCommentXml();
-            if (!string.IsNullOrEmpty(comment))
+            else if (location.IsInSource)
             {
-                apiBase.Comment = HandleXmlComment(comment);
+                var lineSpan = location.SourceTree.GetLineSpan(location.SourceSpan);
+
+                apiBase.Location =
+                    $"{new Uri(location.SourceTree.FilePath)}#{lineSpan.Span.Start.Line + 1}";
             }
+        }
+
+        var comment = symbol.GetDocumentationCommentXml();
+        if (!string.IsNullOrEmpty(comment))
+        {
+            apiBase.Comment = HandleXmlComment(comment);
         }
     }
 
-    private string HandleXmlComment(string comment)
+    private static string HandleXmlComment(string comment)
     {
         comment = comment.Replace('\r', ' ').Trim();
         if (!comment.StartsWith("<member") && !comment.StartsWith("<summary"))
@@ -344,17 +341,20 @@ public class GenerateJsonApi
         {
             while (xmlDoc.Read())
             {
-                if (xmlDoc.IsStartElement())
+                if (!xmlDoc.IsStartElement()) continue;
+                switch (xmlDoc.Name)
                 {
-                    if (xmlDoc.Name == "summary" || xmlDoc.Name == "para")
+                    case "summary" or "para":
                     {
                         xmlDoc.Read();
                         if (xmlDoc.NodeType == XmlNodeType.Text)
                         {
                             summaryText = xmlDoc.Value.Trim();
                         }
+
+                        break;
                     }
-                    else if (xmlDoc.Name == "param")
+                    case "param":
                     {
                         var paramName = xmlDoc.GetAttribute("name");
                         xmlDoc.Read();
@@ -363,11 +363,12 @@ public class GenerateJsonApi
                             var paramValue = xmlDoc.Value.Trim();
                             paramInfo.Add($"{paramName} - {paramValue}");
                         }
+
+                        break;
                     }
-                    else if (xmlDoc.Name == "returns")
-                    {
+                    case "returns":
                         returnInfo = xmlDoc.Value;
-                    }
+                        break;
                 }
             }
         }
@@ -380,7 +381,7 @@ public class GenerateJsonApi
 
         if (paramInfo.Count != 0)
         {
-            var paramDescription = "Params: ";
+            const string paramDescription = "Params: ";
             var indentSize = paramDescription.Length;
             var indent = new string(' ', indentSize);
             sb.Append("```plaintext\n");
