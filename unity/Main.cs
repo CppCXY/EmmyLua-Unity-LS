@@ -21,8 +21,18 @@ else
 {
     var path = args[0];
     var ns = args[1];
+    var msbuildProperties = new Dictionary<string, string>();
+    for (int i = 2; i < args.Length; i++)
+    {
+        var s = args[i].Split('=');
+        if (s.Length >= 2)
+        {
+            msbuildProperties.Add(s[0], s[1]);
+        }
+    }
+
     var workspace = new CSharpWorkspace();
-    await workspace.OpenSolutionAsync(path, new Dictionary<string, string>());
+    await workspace.OpenSolutionAsync(path, msbuildProperties);
     workspace.SetExportNamespace(ns.Split(';').ToList());
     workspace.GenerateDocStdout();
 }
