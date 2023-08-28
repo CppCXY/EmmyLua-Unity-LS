@@ -6,6 +6,7 @@ using unity.core;
 namespace unity.Lsp;
 
 [Parallel, Method("api/pull")]
+// ReSharper disable once ClassNeverInstantiated.Global
 public class PullRequestParams : IRequest
 {
     public string slnPath { get; set; } = "";

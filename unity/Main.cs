@@ -15,14 +15,14 @@ MSBuildLocator.RegisterDefaults();
 if (args.Length < 2)
 {
     var server = new Server();
-    await server.Start(args);
+    await server.StartAsync(args);
 }
 else
 {
     var path = args[0];
     var ns = args[1];
     var msbuildProperties = new Dictionary<string, string>();
-    for (int i = 2; i < args.Length; i++)
+    for (var i = 2; i < args.Length; i++)
     {
         var s = args[i].Split('=');
         if (s.Length >= 2)

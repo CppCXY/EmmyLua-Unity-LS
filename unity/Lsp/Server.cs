@@ -18,7 +18,7 @@ public class Server
     {
     }
 
-    public async Task Start(string[] args)
+    public async Task StartAsync(string[] args)
     {
         var server = await LanguageServer.From(options =>
         {
@@ -29,9 +29,9 @@ public class Server
             }
             else
             {
-                int port = Int32.Parse(args[0]);
+                var port = Int32.Parse(args[0]);
                 var tcpServer = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                IPAddress ipAddress = new IPAddress(new byte[] { 127, 0, 0, 1 });
+                var ipAddress = new IPAddress(new byte[] { 127, 0, 0, 1 });
                 EndPoint endPoint = new IPEndPoint(ipAddress, port);
                 tcpServer.Bind(endPoint);
                 tcpServer.Listen(1);
@@ -54,8 +54,7 @@ public class Server
                 .WithServices(
                     services => { services.AddSingleton(new CSharpWorkspace()); }
                 )
-                .OnInitialize(
-                    async (server, request, token) =>
+                .OnInitialize((server, request, token) =>
                     {
                         var manager = server.WorkDoneManager.For(
                             request, new WorkDoneProgressBegin
@@ -73,6 +72,7 @@ public class Server
                                 Message = "loading in process"
                             }
                         );
+                        return Task.CompletedTask;
                     }
                 ).OnInitialized((server, request, response, token) =>
                     {

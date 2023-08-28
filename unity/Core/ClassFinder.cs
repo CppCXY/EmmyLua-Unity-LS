@@ -4,7 +4,7 @@ namespace unity.core;
 
 public class CustomSymbolFinder
 {
-    public List<INamedTypeSymbol> GetAllSymbols(Compilation compilation, List<string> filterNamespace)
+    public static List<INamedTypeSymbol> GetAllSymbols(Compilation compilation, List<string> filterNamespace)
     {
         var visitor = new FindAllSymbolsVisitor(filterNamespace);
         visitor.Visit(compilation.GlobalNamespace);
@@ -49,18 +49,7 @@ public class CustomSymbolFinder
             }
 
             var namespaceString = symbol.ToString();
-            if (namespaceString != null)
-            {
-                foreach (var prefix in _filter)
-                {
-                    if (namespaceString.StartsWith(prefix))
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
+            return namespaceString != null && _filter.Any(prefix => namespaceString.StartsWith(prefix));
         }
     }
 }

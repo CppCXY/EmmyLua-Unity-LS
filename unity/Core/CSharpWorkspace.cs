@@ -7,17 +7,11 @@ namespace unity.core;
 
 public class CSharpWorkspace
 {
-    private List<string> _exportNamespace;
-    private List<Compilation> _compilations;
-
-    public CSharpWorkspace()
+    private List<string> _exportNamespace = new()
     {
-        _compilations = new List<Compilation>();
-        _exportNamespace = new List<string>()
-        {
-            "UnityEngine"
-        };
-    }
+        "UnityEngine"
+    };
+    private List<Compilation> _compilations = new();
 
     public ILanguageServer? Server { get; set; }
 
@@ -28,7 +22,7 @@ public class CSharpWorkspace
         var solution = await workspace.OpenSolutionAsync(path);
         foreach (var diagnostic in workspace.Diagnostics)
         {
-            Log.Logger.Debug(diagnostic.ToString());
+            Log.Logger.Debug(diagnostic.ToString() ?? string.Empty);
         }
 
         Log.Logger.Debug("open solution completion , start assembly ...");
@@ -37,7 +31,7 @@ public class CSharpWorkspace
         foreach (var project in solution.Projects)
         {
             var compilation = await project.GetCompilationAsync(CancellationToken.None);
-            projectCompilationList.Add(compilation);
+            if (compilation != null) projectCompilationList.Add(compilation);
         }
 
         _compilations = projectCompilationList;
@@ -56,7 +50,7 @@ public class CSharpWorkspace
             generate.Begin();
             foreach (var symbol in from compilation in _compilations
                      let finder = new CustomSymbolFinder()
-                     select finder.GetAllSymbols(compilation, _exportNamespace)
+                     select CustomSymbolFinder.GetAllSymbols(compilation, _exportNamespace)
                      into symbols
                      from symbol in symbols.Where(symbol => symbol is { DeclaredAccessibility: Accessibility.Public })
                      select symbol)
@@ -83,7 +77,7 @@ public class CSharpWorkspace
         {
             foreach (var symbol in from compilation in _compilations
                      let finder = new CustomSymbolFinder()
-                     select finder.GetAllSymbols(compilation, _exportNamespace)
+                     select CustomSymbolFinder.GetAllSymbols(compilation, _exportNamespace)
                      into symbols
                      from symbol in symbols.Where(
                          symbol => symbol is { DeclaredAccessibility: Accessibility.Public })
