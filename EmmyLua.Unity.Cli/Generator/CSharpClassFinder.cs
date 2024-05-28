@@ -1,6 +1,7 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using System.Collections.Concurrent;
+using Microsoft.CodeAnalysis;
 
-namespace unity.core;
+namespace EmmyLua.Unity.Generator;
 
 public class CustomSymbolFinder
 {
@@ -8,21 +9,14 @@ public class CustomSymbolFinder
     {
         var visitor = new FindAllSymbolsVisitor(filterNamespace);
         visitor.Visit(compilation.GlobalNamespace);
-        return visitor.AllTypeSymbols;
+        return visitor.AllTypeSymbols.ToList();
     }
 
     // public HashSet<string> Filter { get; set; } = new HashSet<string>();
 
-    private class FindAllSymbolsVisitor : SymbolVisitor
+    private class FindAllSymbolsVisitor(List<string> filter) : SymbolVisitor
     {
-        private readonly List<string> _filter;
-
-        public FindAllSymbolsVisitor(List<string> filter)
-        {
-            _filter = filter;
-        }
-
-        public List<INamedTypeSymbol> AllTypeSymbols { get; } = new List<INamedTypeSymbol>();
+        public ConcurrentBag<INamedTypeSymbol> AllTypeSymbols { get; } = new ConcurrentBag<INamedTypeSymbol>();
 
         public override void VisitNamespace(INamespaceSymbol symbol)
         {
@@ -49,7 +43,7 @@ public class CustomSymbolFinder
             }
 
             var namespaceString = symbol.ToString();
-            return namespaceString != null && _filter.Any(prefix => namespaceString.StartsWith(prefix));
+            return namespaceString != null && filter.Any(prefix => namespaceString.StartsWith(prefix));
         }
     }
 }
