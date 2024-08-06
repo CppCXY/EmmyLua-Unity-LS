@@ -2,19 +2,19 @@ using Microsoft.CodeAnalysis;
 
 namespace EmmyLua.Unity.Generator;
 
-public class CsTypeBase
+public class CSTypeBase
 {
     public string Name { get; set; } = string.Empty;
     public string Comment { get; set; } = string.Empty;
     public string Location { get; set; } = string.Empty;
 }
 
-public class CsTypeField : CsTypeBase
+public class CSTypeField : CSTypeBase
 {
     public string TypeName = string.Empty;
 }
 
-public class LuaParam
+public class CSParam
 {
     public string Name { get; set; } = string.Empty;
 
@@ -23,13 +23,15 @@ public class LuaParam
     public RefKind Kind { get; set; } = RefKind.None;
 
     public string TypeName { get; set; } = string.Empty;
+    
+    public string Comment { get; set; } = string.Empty;
 }
 
-public class CsTypeMethod : CsTypeBase
+public class CSTypeMethod : CSTypeBase
 {
     public string ReturnTypeName = string.Empty;
 
-    public List<LuaParam> Params = new List<LuaParam>();
+    public List<CSParam> Params = [];
 
     public bool IsStatic;
 }
@@ -39,49 +41,51 @@ public interface IHasNamespace
     public string Namespace { get; set; }
 }
 
-public class CsType : CsTypeBase, IHasNamespace
+public class CSType : CSTypeBase, IHasNamespace
 {
     public string Namespace { get; set; } = string.Empty;
 }
 
 public interface IHasFields
 {
-    public List<CsTypeField> Fields { get; }
+    public List<CSTypeField> Fields { get; }
 }
 
 public interface IHasMethods
 {
-    public List<CsTypeMethod> Methods { get; }
+    public List<CSTypeMethod> Methods { get; }
 }
 
-public class CsClassType : CsType, IHasFields, IHasMethods
+public class CSClassType : CSType, IHasFields, IHasMethods
 {
     public string BaseClass = string.Empty;
 
-    public List<string> Interfaces { get; set; } = new List<string>();
+    public List<string> GenericTypes { get; set; } = [];
 
-    public List<CsTypeField> Fields { get; } = new List<CsTypeField>();
+    public List<string> Interfaces { get; set; } = [];
 
-    public List<CsTypeMethod> Methods { get; } = new List<CsTypeMethod>();
+    public List<CSTypeField> Fields { get; } = [];
+
+    public List<CSTypeMethod> Methods { get; } = [];
 
     public bool IsStatic { get; set; }
 }
 
-public class CsEnumType : CsType, IHasFields
+public class CSEnumType : CSType, IHasFields
 {
-    public List<CsTypeField> Fields { get; } = new List<CsTypeField>();
+    public List<CSTypeField> Fields { get; } = [];
 }
 
-public class CsInterface : CsType, IHasFields, IHasMethods
+public class CSInterface : CSType, IHasFields, IHasMethods
 {
-    public List<string> Interfaces { get; set; } = new List<string>();
+    public List<string> Interfaces { get; set; } = [];
 
-    public List<CsTypeField> Fields { get; } = new List<CsTypeField>();
+    public List<CSTypeField> Fields { get; } = [];
 
-    public List<CsTypeMethod> Methods { get; } = new List<CsTypeMethod>();
+    public List<CSTypeMethod> Methods { get; } = [];
 }
 
-public class CsDelegate : CsType
+public class CSDelegate : CSType
 {
-    public CsTypeMethod InvokeMethod { get; set; } = new CsTypeMethod();
+    public CSTypeMethod InvokeMethod { get; set; } = new();
 }

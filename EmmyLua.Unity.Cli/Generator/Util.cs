@@ -1,4 +1,4 @@
-namespace EmmyLua.Unity.Generator.Dump;
+namespace EmmyLua.Unity.Generator;
 
 public static class Util
 {

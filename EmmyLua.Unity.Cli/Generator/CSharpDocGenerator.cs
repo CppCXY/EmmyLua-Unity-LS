@@ -1,4 +1,4 @@
-using EmmyLua.Unity.Generator.Dump;
+using EmmyLua.Unity.Generator.XLua;
 using Microsoft.CodeAnalysis;
 
 namespace EmmyLua.Unity.Generator;
@@ -27,7 +27,7 @@ public class CSharpDocGenerator(GenerateOptions o)
             Console.WriteLine("Analyzing ...");
             foreach (var symbol in from compilation in compilations
                      let finder = new CustomSymbolFinder()
-                     select CustomSymbolFinder.GetAllSymbols(compilation, namespaces)
+                     select CustomSymbolFinder.GetAllSymbols(compilation, o)
                      into symbols
                      from symbol in symbols.Where(
                          symbol => symbol is { DeclaredAccessibility: Accessibility.Public })

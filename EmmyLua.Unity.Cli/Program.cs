@@ -7,7 +7,7 @@ MSBuildLocator.RegisterDefaults();
 
 Parser.Default
     .ParseArguments<GenerateOptions>(args)
-    .WithParsed<GenerateOptions>(o =>
+    .WithParsed((o) =>
     {
         var docGenerator = new CSharpDocGenerator(o);
         var exitCode = docGenerator.Run();

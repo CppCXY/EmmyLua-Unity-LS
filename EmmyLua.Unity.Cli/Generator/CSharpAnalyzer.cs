@@ -6,9 +6,9 @@ namespace EmmyLua.Unity.Generator;
 
 public class CSharpAnalyzer
 {
-    private List<CsType> CsTypes { get; } = new();
+    private List<CSType> CsTypes { get; } = [];
 
-    private Dictionary<string, List<CsTypeMethod>> ExtendMethods { get; } = new();
+    private Dictionary<string, List<CSTypeMethod>> ExtendMethods { get; } = [];
 
     public void AnalyzeType(INamedTypeSymbol namedType)
     {
@@ -19,13 +19,13 @@ public class CSharpAnalyzer
                 return;
             }
 
-            CsType csType = namedType switch
+            CSType csType = namedType switch
             {
                 { TypeKind: TypeKind.Class or TypeKind.Struct } => AnalyzeClassType(namedType),
                 { TypeKind: TypeKind.Interface } => AnalyzeInterfaceType(namedType),
                 { TypeKind: TypeKind.Enum } => AnalyzeEnumType(namedType),
                 { TypeKind: TypeKind.Delegate } => AnalyzeDelegateType(namedType),
-                _ => new CsType()
+                _ => new CSType()
             };
             CsTypes.Add(csType);
         }
@@ -35,7 +35,7 @@ public class CSharpAnalyzer
         }
     }
 
-    public List<CsType> GetCsTypes()
+    public List<CSType> GetCsTypes()
     {
         if (ExtendMethods.Count != 0)
         {
@@ -58,8 +58,9 @@ public class CSharpAnalyzer
 
     private void AnalyzeTypeFields(ISymbol symbol, IHasFields classType)
     {
-        var field = new CsTypeField();
+        var field = new CSTypeField();
         FillBaeInfo(symbol, field);
+        field.Comment = GetXmlSummaryComment(symbol);
         field.TypeName = symbol switch
         {
             IFieldSymbol fieldSymbol => fieldSymbol.Type.ToDisplayString(),
@@ -78,8 +79,13 @@ public class CSharpAnalyzer
             return;
         }
 
-        var method = new CsTypeMethod();
+        var method = new CSTypeMethod();
         FillBaeInfo(methodSymbol, method);
+        var xmlDictionary = GetXmlComment(methodSymbol);
+        if (xmlDictionary.TryGetValue("<summary>", out var summary))
+        {
+            method.Comment = summary;
+        }
         method.IsStatic = methodSymbol.IsStatic;
         method.ReturnTypeName = methodSymbol.ReturnType.ToDisplayString();
         if (methodSymbol.IsExtensionMethod)
@@ -87,17 +93,17 @@ public class CSharpAnalyzer
             method.IsStatic = false;
             var parameters = methodSymbol.Parameters;
             var thisParameter = parameters.FirstOrDefault();
-            if (thisParameter == null) return;
-            var thisType = thisParameter.Type;
+            var thisType = thisParameter?.Type;
             if (thisType is not INamedTypeSymbol namedTypeSymbol) return;
             method.Params = methodSymbol.Parameters
                 .Skip(1)
-                .Select(it => new LuaParam()
+                .Select(it => new CSParam()
                 {
                     Name = it.Name,
                     Nullable = it.IsOptional,
                     Kind = it.RefKind,
-                    TypeName = it.Type.ToDisplayString()
+                    TypeName = it.Type.ToDisplayString(),
+                    Comment = xmlDictionary.GetValueOrDefault(it.Name, "")
                 }).ToList();
 
             if (ExtendMethods.TryGetValue(namedTypeSymbol.Name, out var extendMethod))
@@ -112,20 +118,21 @@ public class CSharpAnalyzer
         else
         {
             method.Params = methodSymbol.Parameters
-                .Select(it => new LuaParam()
+                .Select(it => new CSParam()
                 {
                     Name = it.Name,
                     Nullable = it.IsOptional,
                     Kind = it.RefKind,
-                    TypeName = it.Type.ToDisplayString()
+                    TypeName = it.Type.ToDisplayString(),
+                    Comment = xmlDictionary.GetValueOrDefault(it.Name, "")
                 }).ToList();
             csClassType.Methods.Add(method);
         }
     }
 
-    private CsType AnalyzeClassType(INamedTypeSymbol symbol)
+    private CSType AnalyzeClassType(INamedTypeSymbol symbol)
     {
-        var csType = new CsClassType();
+        var csType = new CSClassType();
         FillNamespace(symbol, csType);
 
         if (!symbol.AllInterfaces.IsEmpty)
@@ -134,7 +141,14 @@ public class CSharpAnalyzer
         }
 
         csType.BaseClass = symbol.BaseType?.ToString() ?? "";
+        
         FillBaeInfo(symbol, csType);
+        csType.Comment = GetXmlSummaryComment(symbol);
+        
+        if (symbol is { TypeArguments.Length: > 0 })
+        {
+            csType.GenericTypes = symbol.TypeArguments.Select(it => it.ToDisplayString()).ToList();
+        }
 
         foreach (var member in symbol.GetMembers().Where(it => it is { DeclaredAccessibility: Accessibility.Public }))
         {
@@ -152,9 +166,9 @@ public class CSharpAnalyzer
         return csType;
     }
 
-    private CsType AnalyzeInterfaceType(INamedTypeSymbol symbol)
+    private CSType AnalyzeInterfaceType(INamedTypeSymbol symbol)
     {
-        var csType = new CsInterface();
+        var csType = new CSInterface();
         FillNamespace(symbol, csType);
 
         if (!symbol.AllInterfaces.IsEmpty)
@@ -163,6 +177,8 @@ public class CSharpAnalyzer
         }
 
         FillBaeInfo(symbol, csType);
+        
+        csType.Comment = GetXmlSummaryComment(symbol);
 
         foreach (var member in symbol.GetMembers().Where(it => it is { DeclaredAccessibility: Accessibility.Public }))
         {
@@ -180,12 +196,14 @@ public class CSharpAnalyzer
         return csType;
     }
 
-    private CsType AnalyzeEnumType(INamedTypeSymbol symbol)
+    private CSType AnalyzeEnumType(INamedTypeSymbol symbol)
     {
-        var csType = new CsEnumType();
+        var csType = new CSEnumType();
 
         FillNamespace(symbol, csType);
         FillBaeInfo(symbol, csType);
+        
+        csType.Comment = GetXmlSummaryComment(symbol);
 
         foreach (var member in symbol.GetMembers().Where(it => it is { DeclaredAccessibility: Accessibility.Public }))
         {
@@ -200,18 +218,19 @@ public class CSharpAnalyzer
         return csType;
     }
 
-    private CsType AnalyzeDelegateType(INamedTypeSymbol symbol)
+    private CSType AnalyzeDelegateType(INamedTypeSymbol symbol)
     {
-        var csType = new CsDelegate();
+        var csType = new CSDelegate();
         FillNamespace(symbol, csType);
         FillBaeInfo(symbol, csType);
+        csType.Comment = GetXmlSummaryComment(symbol);
         var invokeMethod = symbol.DelegateInvokeMethod;
         if (invokeMethod != null)
         {
-            var method = new CsTypeMethod();
+            var method = new CSTypeMethod();
             method.ReturnTypeName = invokeMethod.ReturnType.ToDisplayString();
             method.Params = invokeMethod.Parameters
-                .Select(it => new LuaParam()
+                .Select(it => new CSParam()
                 {
                     Name = it.Name,
                     Nullable = it.IsOptional,
@@ -231,6 +250,7 @@ public class CSharpAnalyzer
             if (nsSymbol.IsGlobalNamespace)
             {
                 hasNamespace.Namespace = string.Empty;
+                return;
             }
 
             hasNamespace.Namespace = nsSymbol.ToString()!;
@@ -241,14 +261,9 @@ public class CSharpAnalyzer
         }
     }
 
-    private void FillBaeInfo(ISymbol symbol, CsTypeBase typeBase)
+    private void FillBaeInfo(ISymbol symbol, CSTypeBase typeBase)
     {
         typeBase.Name = symbol.Name;
-        if (symbol is INamedTypeSymbol { TypeArguments.Length: > 0 } namedTypeSymbol)
-        {
-            typeBase.Name += "<" + string.Join(",", namedTypeSymbol.TypeArguments.Select(x => x.ToDisplayString())) +
-                             ">";
-        }
 
         if (!symbol.Locations.IsEmpty)
         {
@@ -262,19 +277,19 @@ public class CSharpAnalyzer
                 var lineSpan = location.SourceTree.GetLineSpan(location.SourceSpan);
 
                 typeBase.Location =
-                    $"{new Uri(location.SourceTree.FilePath)}#{lineSpan.Span.Start.Line + 1}:{lineSpan.Span.Start.Character + 1}";
+                    $"{new Uri(location.SourceTree.FilePath)}#{lineSpan.Span.Start.Line}:{lineSpan.Span.Start.Character}";
             }
         }
-
-        var comment = symbol.GetDocumentationCommentXml();
-        if (!string.IsNullOrEmpty(comment))
-        {
-            typeBase.Comment = HandleXmlComment(comment);
-        }
     }
-
-    private static string HandleXmlComment(string comment)
+    
+    private static string GetXmlSummaryComment(ISymbol symbol)
     {
+        var comment = symbol.GetDocumentationCommentXml();
+        if (comment is null)
+        {
+            return string.Empty;
+        }
+        
         comment = comment.Replace('\r', ' ').Trim();
         if (!comment.StartsWith("<member") && !comment.StartsWith("<summary"))
         {
@@ -286,9 +301,48 @@ public class CSharpAnalyzer
             comment = $"<parent>{comment}</parent>";
         }
 
-        var summaryText = string.Empty;
-        var paramInfo = new List<string>();
-        var returnInfo = string.Empty;
+        using var xmlDoc = XmlReader.Create(new StringReader(comment));
+        while (xmlDoc.Read())
+        {
+            if (!xmlDoc.IsStartElement()) continue;
+            switch (xmlDoc.Name)
+            {
+                case "summary" or "para":
+                {
+                    xmlDoc.Read();
+                    if (xmlDoc.NodeType == XmlNodeType.Text)
+                    {
+                        return xmlDoc.Value.Trim();
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static Dictionary<string, string> GetXmlComment(ISymbol symbol)
+    {
+        var comment = symbol.GetDocumentationCommentXml();
+        if (comment is null)
+        {
+            return [];
+        }
+        
+        comment = comment.Replace('\r', ' ').Trim();
+        if (!comment.StartsWith("<member") && !comment.StartsWith("<summary"))
+        {
+            return [];
+        }
+    
+        if (comment.StartsWith("<summary"))
+        {
+            comment = $"<parent>{comment}</parent>";
+        }
+    
+        var result = new Dictionary<string, string>();
         using (var xmlDoc = XmlReader.Create(new StringReader(comment)))
         {
             while (xmlDoc.Read())
@@ -301,60 +355,34 @@ public class CSharpAnalyzer
                         xmlDoc.Read();
                         if (xmlDoc.NodeType == XmlNodeType.Text)
                         {
-                            summaryText = xmlDoc.Value.Trim();
+                            var summaryText = xmlDoc.Value.Trim();
+                            result["<summary>"] = summaryText;
                         }
-
+    
                         break;
                     }
                     case "param":
                     {
                         var paramName = xmlDoc.GetAttribute("name");
                         xmlDoc.Read();
-                        if (xmlDoc.NodeType == XmlNodeType.Text)
+                        if (xmlDoc.NodeType == XmlNodeType.Text && paramName is not null)
                         {
                             var paramValue = xmlDoc.Value.Trim();
-                            paramInfo.Add($"{paramName} - {paramValue}");
+                            result[paramName] = paramValue;
                         }
-
+    
                         break;
                     }
                     case "returns":
-                        returnInfo = xmlDoc.Value;
+                    {
+                        var returnInfo = xmlDoc.Value;
+                        result["<returns>"] = returnInfo;
                         break;
+                    }
                 }
             }
         }
 
-        var sb = new StringBuilder();
-        if (summaryText.Length != 0)
-        {
-            sb.Append(summaryText).Append("\n\n");
-        }
-
-        if (paramInfo.Count != 0)
-        {
-            const string paramDescription = "Params: ";
-            var indentSize = paramDescription.Length;
-            var indent = new string(' ', indentSize);
-            sb.Append("```plaintext\n");
-            sb.Append(paramDescription);
-            foreach (var param in paramInfo)
-            {
-                sb.Append($"{param}\n{indent}");
-            }
-
-            sb.Append("\n```\n\n");
-        }
-
-        if (returnInfo.Length != 0)
-        {
-            var returnDescription = "Returns: ";
-            sb.Append("```plaintext\n");
-            sb.Append(returnDescription);
-            sb.Append(returnInfo);
-            sb.Append("```\n\n");
-        }
-
-        return sb.ToString();
+        return result;
     }
 }

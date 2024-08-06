@@ -1,20 +1,20 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
 
-namespace EmmyLua.Unity.Generator.Dump;
+namespace EmmyLua.Unity.Generator.XLua;
 
 public class XLuaDumper : IDumper
 {
     public string Name => "XLuaDumper";
 
-    // 200kb
-    private static readonly int SingleFileLength = 100 * 1024;
+    // 500kb
+    private static readonly int SingleFileLength = 500 * 1024;
 
     private int Count { get; set; } = 0;
-    
-    private HashSet<string> NamespaceSet { get; } = new HashSet<string>();
 
-    public void Dump(List<CsType> csTypes, string outPath)
+    private Dictionary<string, bool> NamespaceDict { get; } = new ();
+
+    public void Dump(List<CSType> csTypes, string outPath)
     {
         if (!Directory.Exists(outPath))
         {
@@ -27,16 +27,16 @@ public class XLuaDumper : IDumper
         {
             switch (csType)
             {
-                case CsClassType csClassType:
+                case CSClassType csClassType:
                     HandleCsClassType(csClassType, sb);
                     break;
-                case CsInterface csInterface:
+                case CSInterface csInterface:
                     HandleCsInterface(csInterface, sb);
                     break;
-                case CsEnumType csEnumType:
+                case CSEnumType csEnumType:
                     HandleCsEnumType(csEnumType, sb);
                     break;
-                case CsDelegate csDelegate:
+                case CSDelegate csDelegate:
                     HandleCsDelegate(csDelegate, sb);
                     break;
             }
@@ -50,31 +50,25 @@ public class XLuaDumper : IDumper
         {
             CacheOrDumpToFile(sb, outPath, true);
         }
-        
+
         DumpNamespace(sb, outPath);
     }
-    
+
     private void DumpNamespace(StringBuilder sb, string outPath)
     {
         sb.AppendLine("CS = {}");
-        var wroteNameSet = new HashSet<string>();
-        foreach (var namespaceString in NamespaceSet)
+        foreach (var (namespaceString, isNamespace) in NamespaceDict)
         {
-            if (!wroteNameSet.Contains(namespaceString))
+            if (isNamespace)
             {
-                var parts = namespaceString.Split('.');
-                var name = "CS";
-                foreach (var part in parts)
-                {
-                    name += $".{part}";
-                    if (wroteNameSet.Add(name))
-                    {
-                        sb.AppendLine($"{name} = {{}}");
-                    }
-                }
+                sb.AppendLine($"---@type namespace <\"{namespaceString}\">\nCS.{namespaceString} = {{}}");
+            }
+            else
+            {
+                sb.AppendLine($"---@type {namespaceString}\nCS.{namespaceString} = {{}}");
             }
         }
-        
+
         var filePath = Path.Combine(outPath, "xlua_namespace.lua");
         File.WriteAllText(filePath, sb.ToString());
     }
@@ -96,9 +90,21 @@ public class XLuaDumper : IDumper
         sb.AppendLine("---@meta");
     }
 
-    private void HandleCsClassType(CsClassType csClassType, StringBuilder sb)
+    private void HandleCsClassType(CSClassType csClassType, StringBuilder sb)
     {
-        NamespaceSet.Add(csClassType.Namespace);
+        if (csClassType.Namespace.Length > 0)
+        {
+            var firstNamespace = csClassType.Namespace.Split('.').FirstOrDefault();
+            if (firstNamespace != null)
+            {
+                NamespaceDict.TryAdd(firstNamespace, true);
+            }
+        }
+        else
+        {
+            NamespaceDict.TryAdd(csClassType.Name, false);
+        }
+
         var classFullName = csClassType.Name;
         if (csClassType.Namespace.Length > 0)
         {
@@ -106,7 +112,8 @@ public class XLuaDumper : IDumper
         }
 
         WriteCommentAndLocation(csClassType.Comment, csClassType.Location, sb);
-        WriteTypeAnnotation("class", classFullName, csClassType.BaseClass, csClassType.Interfaces, sb);
+        WriteTypeAnnotation("class", classFullName, csClassType.BaseClass, csClassType.Interfaces,
+            csClassType.GenericTypes, sb);
         if (!csClassType.IsStatic)
         {
             var ctors = GetCtorList(csClassType);
@@ -114,7 +121,8 @@ public class XLuaDumper : IDumper
             {
                 foreach (var ctor in ctors)
                 {
-                    var paramsString = string.Join(",", ctor.Params.Select(it => $"{it.Name}: {Util.CovertToLuaTypeName(it.TypeName)}"));
+                    var paramsString = string.Join(",",
+                        ctor.Params.Select(it => $"{it.Name}: {Util.CovertToLuaTypeName(it.TypeName)}"));
                     sb.AppendLine(
                         $"---@overload fun({paramsString}): {classFullName}");
                 }
@@ -126,15 +134,6 @@ public class XLuaDumper : IDumper
         }
 
         sb.AppendLine($"local {csClassType.Name} = {{}}");
-        if (csClassType.Namespace.Length > 0)
-        {
-            sb.AppendLine($"CS.{csClassType.Namespace}.{csClassType.Name} = {csClassType.Name}");
-        }
-        else
-        {
-            sb.AppendLine($"CS.{csClassType.Name} = {csClassType.Name}");
-        }
-
         foreach (var csTypeField in csClassType.Fields)
         {
             WriteCommentAndLocation(csTypeField.Comment, csTypeField.Location, sb);
@@ -149,10 +148,10 @@ public class XLuaDumper : IDumper
             {
                 continue;
             }
-            
+
             WriteCommentAndLocation(csTypeMethod.Comment, csTypeMethod.Location, sb);
 
-            var outParams = new List<LuaParam>();
+            var outParams = new List<CSParam>();
             foreach (var param in csTypeMethod.Params)
             {
                 if (param.Kind is RefKind.Out or RefKind.Ref)
@@ -162,10 +161,19 @@ public class XLuaDumper : IDumper
 
                 if (param.Kind != RefKind.Out)
                 {
-                    sb.AppendLine($"---@param {param.Name} {Util.CovertToLuaTypeName(param.TypeName)}");
+                    var comment = param.Comment;
+                    if (comment.Length > 0)
+                    {
+                        comment = comment.Replace("\n", "\n---");
+                        sb.AppendLine($"---@param {param.Name} {Util.CovertToLuaTypeName(param.TypeName)} {comment}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"---@param {param.Name} {Util.CovertToLuaTypeName(param.TypeName)}");
+                    }
                 }
             }
-            
+
             sb.Append($"---@return {Util.CovertToLuaTypeName(csTypeMethod.ReturnTypeName)}");
             if (outParams.Count > 0)
             {
@@ -184,8 +192,9 @@ public class XLuaDumper : IDumper
             {
                 sb.AppendLine();
             }
-            
-            sb.Append($"function {csClassType.Name}:{csTypeMethod.Name}(");
+
+            var dot = csTypeMethod.IsStatic ? "." : ":";
+            sb.Append($"function {csClassType.Name}{dot}{csTypeMethod.Name}(");
             for (var i = 0; i < csTypeMethod.Params.Count; i++)
             {
                 sb.Append(Util.CovertToLuaCompactName(csTypeMethod.Params[i].Name));
@@ -202,9 +211,21 @@ public class XLuaDumper : IDumper
     }
 
     private void WriteTypeAnnotation(string tag, string fullName, string baseClass, List<string> interfaces,
+        List<string> genericTypes,
         StringBuilder sb)
     {
         sb.Append($"---@{tag} {fullName}");
+        if (genericTypes.Count > 0)
+        {
+            sb.Append($"<{genericTypes[0]}>");
+            for (var i = 1; i < genericTypes.Count; i++)
+            {
+                sb.Append($", {genericTypes[i]}");
+            }
+
+            sb.Append('>');
+        }
+
         if (!string.IsNullOrEmpty(baseClass))
         {
             sb.Append($": {baseClass}");
@@ -232,28 +253,60 @@ public class XLuaDumper : IDumper
             sb.AppendLine($"---{comment.Replace("\n", "\n---")}");
         }
 
-        if (location.Length > 0)
+        if (location.StartsWith("file://"))
         {
-            sb.AppendLine($"---@source {location}");
+            location = location.Replace("\"", "'");
+            sb.AppendLine($"---@source \"{location}\"");
         }
     }
 
-    private void HandleCsInterface(CsInterface csInterface, StringBuilder sb)
+    private void HandleCsInterface(CSInterface csInterface, StringBuilder sb)
     {
         sb.AppendLine($"---@interface {csInterface.Name}");
     }
 
-    private void HandleCsEnumType(CsEnumType csEnumType, StringBuilder sb)
+    private void HandleCsEnumType(CSEnumType csEnumType, StringBuilder sb)
     {
-        // sb.AppendLine($"---@class {csEnumType.Name}");
-        // sb.AppendLine($"---@field public {csEnumType.EnumType} {csEnumType.EnumType}");
+        if (csEnumType.Namespace.Length > 0)
+        {
+            var firstNamespace = csEnumType.Namespace.Split('.').FirstOrDefault();
+            if (firstNamespace != null)
+            {
+                NamespaceDict.TryAdd(firstNamespace, true);
+            }
+        }
+        else
+        {
+            NamespaceDict.TryAdd(csEnumType.Name, false);
+        }
+
+        var classFullName = csEnumType.Name;
+        if (csEnumType.Namespace.Length > 0)
+        {
+            classFullName = $"{csEnumType.Namespace}.{csEnumType.Name}";
+        }
+
+        WriteCommentAndLocation(csEnumType.Comment, csEnumType.Location, sb);
+        WriteTypeAnnotation("enum", classFullName, string.Empty, [], [], sb);
+        
+        sb.AppendLine($"local {csEnumType.Name} = {{}}");
+        foreach (var csTypeField in csEnumType.Fields)
+        {
+            WriteCommentAndLocation(csTypeField.Comment, csTypeField.Location, sb);
+            sb.AppendLine("---@type integer");
+            sb.AppendLine($"{csEnumType.Name}.{csTypeField.Name} = nil");
+            sb.AppendLine();
+        }
     }
 
-    private void HandleCsDelegate(CsDelegate csDelegate, StringBuilder sb)
+    private void HandleCsDelegate(CSDelegate csDelegate, StringBuilder sb)
     {
+        var paramsString = string.Join(",",
+            csDelegate.InvokeMethod.Params.Select(it => $"{it.Name}: {Util.CovertToLuaTypeName(it.TypeName)}"));
+        sb.AppendLine($"---@alias {csDelegate.Name} fun({paramsString}): {Util.CovertToLuaTypeName(csDelegate.InvokeMethod.ReturnTypeName)}");
     }
 
-    private List<CsTypeMethod> GetCtorList(CsClassType csClassType)
+    private List<CSTypeMethod> GetCtorList(CSClassType csClassType)
     {
         return csClassType.Methods.FindAll(method => method.Name == ".ctor");
     }
