@@ -287,7 +287,7 @@ public class XLuaDumper : IDumper
         }
 
         WriteCommentAndLocation(csEnumType.Comment, csEnumType.Location, sb);
-        WriteTypeAnnotation("enum", classFullName, string.Empty, [], [], sb);
+        WriteTypeAnnotation("enum", $"{classFullName}.Detail", string.Empty, [], [], sb);
         
         sb.AppendLine($"local {csEnumType.Name} = {{}}");
         foreach (var csTypeField in csEnumType.Fields)
@@ -296,6 +296,12 @@ public class XLuaDumper : IDumper
             sb.AppendLine("---@type integer");
             sb.AppendLine($"{csEnumType.Name}.{csTypeField.Name} = nil");
             sb.AppendLine();
+        }
+        
+        sb.AppendLine($"---@enum (key) {classFullName}");
+        foreach (var csTypeField in csEnumType.Fields)
+        {
+            sb.AppendLine($"---| CS.{csEnumType.Name}.{csTypeField.Name}");
         }
     }
 

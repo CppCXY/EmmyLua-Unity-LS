@@ -54,9 +54,7 @@ jobs:
           filename: linux-x64.zip
           path: linux-x64
       - name: tar linux-64
-        run: |
-          chmod 777 linux-x64/unity
-          tar -czvf linux-x64.tar.gz linux-x64
+        run: tar -czvf linux-x64.tar.gz linux-x64
       - name: zip darwin-x64
         uses: TheDoctor0/zip-release@v0.2.1
         with:

@@ -46,7 +46,6 @@ public class CSharpDocGenerator(GenerateOptions o)
                     break;
                 case LuaBindingType.ToLua:
                     Console.WriteLine("Generating ToLua binding ...");
-
                     break;
                 default:
                     Console.WriteLine("No binding type specified.");
