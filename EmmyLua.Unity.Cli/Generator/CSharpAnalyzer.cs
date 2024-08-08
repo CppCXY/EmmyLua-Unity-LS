@@ -160,6 +160,9 @@ public class CSharpAnalyzer
                 case IMethodSymbol methodSymbol:
                     AnalyzeTypeMethods(methodSymbol, csType);
                     break;
+                case IPropertySymbol propertySymbol:
+                    AnalyzeTypeFields(propertySymbol, csType);
+                    break;
             }
         }
 

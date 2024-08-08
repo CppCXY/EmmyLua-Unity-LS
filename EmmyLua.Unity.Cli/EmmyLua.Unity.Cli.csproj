@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>EmmyLua.Unity</RootNamespace>
+    <OptimizationPreference>Speed</OptimizationPreference>
+<!--    <InvariantGlobalization>true</InvariantGlobalization>-->
+<!--    <PublishAot>true</PublishAot>-->
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
